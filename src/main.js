@@ -6,18 +6,22 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { setupEnvironment } from './environment.js';
 import { setupGUI } from './guicontrols.js';
 
+
+//** website setup to contain simulation inside the container on webpage */
+const container = document.getElementById('sim-container');
+
 // 1. Scene Setup
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87CEEB); 
 
 // 2. Camera Setup
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
 camera.position.set(0, 10, 20); // ** Camera positioned to look down at the riverbed
 
 // 3. Renderer Setup
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement);
+renderer.setSize(container.clientWidth, container.clientHeight);
+container.appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 
@@ -57,7 +61,7 @@ function animate() {
 animate();
 
 window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.aspect = container.clientWidth / container.clientHeight;
     camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setSize(container.clientWidth, container.clientHeight);
 });
