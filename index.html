@@ -2,141 +2,194 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Whitewater River Scene</title>
+    <title>Whitewater Rapids - Vista OS</title>
     <style>
-        /* 1. THE SWEEPING AERO BACKGROUND */
+        /* --- 1. GLOBAL & DESKTOP --- */
         body { 
             margin: 0; overflow: hidden; height: 100vh;
-            display: flex; justify-content: center; align-items: center;
-            background-image: url('backgrounds/webpage background 2.png'); background-size: cover; background-position: center;        
-            font-family: "Segoe UI", "Tahoma", "Helvetica Neue", sans-serif;
+            /* Vista rigorously used Segoe UI for everything */
+            font-family: "Segoe UI", Tahoma, "Helvetica Neue", sans-serif;
+            background-image: url('backgrounds/desktop background.jpg'); 
+            background-size: cover; background-position: center;
         } 
 
-        /* 2. THE MAIN GLASS APPLICATION WINDOW */
-        #sim-container {
-            width: 82vw; height: 85vh; position: relative;
-            border-radius: 16px;
-            border: 1px solid rgba(255, 255, 255, 0.5);
-            border-top: 2px solid rgba(255, 255, 255, 0.8);
-            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(255, 255, 255, 0.3);
-            overflow: hidden; 
-            margin-right: 120px; /* Space for the dock */
-            transition: margin-right 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+        /* VISTA DESKTOP ICONS */
+        #desktop-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5;
+            padding: 10px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start;
         }
 
-        canvas { display: block; position: absolute; top: 0; left: 0; z-index: 1; }
+        .desktop-icon {
+            width: 74px; height: 74px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            border: 1px solid transparent; border-radius: 4px; cursor: pointer; transition: all 0.1s;
+        }
+        /* Classic Vista translucent blue selection box */
+        .desktop-icon:hover {
+            background: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: inset 0 0 5px rgba(255, 255, 255, 0.3);
+        }
+        .desktop-icon img { width: 42px; height: 42px; margin-bottom: 4px; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.6)); }
+        .desktop-icon span {
+            color: white; font-size: 11px; text-align: center; line-height: 1.2;
+            /* Vista desktop icon text shadow for readability against any wallpaper */
+            text-shadow: 0 1px 1px black, 0 1px 3px black, 0 0 5px black;
+        }
 
-        /* 3. THE FULL-SCREEN WELCOME OVERLAY */
-        #info-panel {
+        /* --- 2. VISTA TASKBAR --- */
+        #vista-taskbar {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 40px;
+            background: linear-gradient(180deg, rgba(30,40,50,0.6) 0%, rgba(10,20,30,0.8) 40%, rgba(0,0,10,0.9) 41%, rgba(10,20,30,0.8) 100%);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(255,255,255,0.3);
+            display: flex; align-items: center; z-index: 100;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.5);
+        }
+
+        #start-orb {
+            width: 48px; height: 48px; margin-left: 10px; margin-bottom: 6px; 
+            border-radius: 50%; cursor: pointer; background: transparent; 
+            border: 2px solid rgba(255,255,255,0.8);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5), inset 0 2px 4px rgba(255,255,255,0.8);
+            display: flex; justify-content: center; align-items: center; transition: all 0.2s; overflow: hidden; 
+        }
+        #start-orb:hover { filter: brightness(1.2); box-shadow: 0 0 15px rgba(85,170,255,0.8); }
+        #start-orb img { width: 100%; height: 100%; object-fit: cover; }
+
+        /* Fake Quick Launch Bar */
+        .quick-launch {
+            display: flex; gap: 4px; padding: 0 15px; border-right: 1px solid rgba(255,255,255,0.1); margin-right: 5px; height: 100%; align-items: center; box-shadow: inset -1px 0 0 rgba(0,0,0,0.5);
+        }
+        .quick-icon { width: 22px; height: 22px; cursor: pointer; border-radius: 3px; border: 1px solid transparent; padding: 2px; }
+        .quick-icon:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.3); }
+
+        /* Running Apps Wrapper */
+        .taskbar-apps-container { display: flex; gap: 4px; flex-grow: 1; align-items: center; }
+
+        /* The Active/Running Tasks */
+        .taskbar-app {
+            height: 32px; width: 150px;
+            border-radius: 4px; display: flex; align-items: center; padding: 0 10px; gap: 8px; cursor: pointer;
+            transition: all 0.1s;
+        }
+        /* Active (Pressed in) State */
+        .taskbar-app.active {
+            background: linear-gradient(180deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.05) 49%, rgba(0,0,0,0.2) 50%, rgba(255,255,255,0.1) 100%);
+            border: 1px solid rgba(255,255,255,0.4); box-shadow: inset 0 0 10px rgba(255,255,255,0.2);
+        }
+        /* Inactive (Fake App) State */
+        .taskbar-app.inactive {
+            border: 1px solid transparent; 
+        }
+        .taskbar-app.inactive:hover {
+            border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.05);
+        }
+        
+        .taskbar-app img { width: 18px; height: 18px; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.5)); }
+        .taskbar-app span { color: white; font-size: 12px; font-weight: 400; text-shadow: 0 1px 2px black; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .sys-tray { padding: 0 20px; color: white; font-size: 11px; text-shadow: 0 1px 2px black; display: flex; gap: 10px; align-items: center; border-left: 1px solid rgba(255,255,255,0.1); box-shadow: inset 1px 0 0 rgba(0,0,0,0.5); height: 100%; }
+        .sys-icon { width: 16px; height: 16px; opacity: 0.8; }
+
+        /* --- 3. THE HYPER-REALISTIC VISTA WINDOW --- */
+        #app-window {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            width: 80vw; height: 75vh;
+            
+            /* The thick, highly refractive Aero Glass borders */
+            padding: 4px 8px 8px 8px; /* Thicker on bottom and sides */
+            background: linear-gradient(135deg, rgba(160, 200, 230, 0.4) 0%, rgba(130, 170, 200, 0.2) 100%);
+            backdrop-filter: blur(18px) saturate(140%); -webkit-backdrop-filter: blur(18px) saturate(140%);
+            
+            border-radius: 8px; /* Slightly sharper outer edge than modern OS */
+            border: 1px solid rgba(255, 255, 255, 0.4); 
+            border-top: 1px solid rgba(255, 255, 255, 0.8);
+            
+            /* Complex shadow: soft outer glow + hard drop shadow + bright inner inset line */
+            box-shadow: 0 15px 50px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,0,0,0.1), inset 0 1px 1px rgba(255,255,255,0.8), inset 0 0 2px 1px rgba(255,255,255,0.4);
+            
+            display: flex; flex-direction: column; z-index: 50;
+            transition: opacity 0.3s, transform 0.3s; 
+        }
+        #app-window.minimized { opacity: 0; pointer-events: none; transform: translate(-50%, 50vh) scale(0.8) !important; }
+
+        /* Glowing Vista Title Bar */
+        #window-titlebar { height: 26px; display: flex; justify-content: space-between; align-items: center; cursor: default; margin-bottom: 5px; padding: 0 2px; }
+        .title-left { display: flex; align-items: center; gap: 6px; }
+        .title-left img { width: 16px; height: 16px; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5)); }
+        
+        /* Classic Vista Text: Black font wrapped in a strong, tight white halo */
+        .title-left span { 
+            color: #000000; font-size: 12px; font-weight: 600; 
+            text-shadow: 0 0 4px rgba(255,255,255,1), 0 0 8px rgba(255,255,255,0.9), 0 0 12px rgba(255,255,255,0.8); 
+        }
+
+        /* Accurate Vista Window Controls */
+        .window-controls { display: flex; gap: 1px; }
+        .win-btn { 
+            width: 28px; height: 19px; 
+            border: 1px solid rgba(0,0,0,0.3); border-radius: 2px;
+            /* Reflective glass button background */
+            background: linear-gradient(180deg, rgba(255,255,255,0.6) 0%, rgba(200,220,240,0.4) 49%, rgba(150,180,210,0.5) 50%, rgba(200,220,240,0.6) 100%);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.8), inset 0 -1px 2px rgba(255,255,255,0.3);
+            display: flex; justify-content: center; align-items: center; 
+            color: #000; font-size: 10px; font-weight: bold; cursor: pointer; text-shadow: 0 1px 0px rgba(255,255,255,0.8); 
+            transition: all 0.1s;
+        }
+        .win-btn:hover { background: linear-gradient(180deg, rgba(220,240,255,0.8) 0%, rgba(150,200,255,0.4) 49%, rgba(100,160,220,0.5) 50%, rgba(180,210,250,0.6) 100%); box-shadow: inset 0 0 5px rgba(255,255,255,1); }
+        
+        /* The Iconic Red Close Button */
+        .btn-close { 
+            border-top-right-radius: 6px; /* Specific to Vista */
+            background: linear-gradient(180deg, rgba(255,180,180,0.6) 0%, rgba(220,100,100,0.5) 49%, rgba(200,50,50,0.6) 50%, rgba(255,150,150,0.6) 100%);
+        }
+        .btn-close:hover { 
+            background: linear-gradient(180deg, rgba(255,150,150,0.9) 0%, rgba(220,30,30,0.8) 49%, rgba(180,0,0,0.9) 50%, rgba(255,100,100,0.8) 100%); 
+            color: white; text-shadow: 0 1px 2px black; border-color: #880000; box-shadow: inset 0 0 8px rgba(255,100,100,0.8);
+        }
+
+        /* Inner App Window Styling */
+        .window-content { 
+            flex-grow: 1; background: #f0f4f8; 
+            border-radius: 3px; border: 1px solid rgba(0,0,0,0.4); box-shadow: 0 0 0 1px rgba(255,255,255,0.6); 
+            display: flex; padding: 10px; gap: 15px; overflow: hidden; 
+        }
+
+        #canvas-wrapper { width: 70%; height: 100%; position: relative; border-radius: 2px; overflow: hidden; border: 1px solid #888; box-shadow: inset 0 2px 5px rgba(0,0,0,0.2); background: #000; }
+        #canvas-wrapper canvas { display: block; position: absolute; top: 0; left: 0; width: 100% !important; height: 100% !important; outline: none; }
+
+        #settings-sidebar { width: 30%; height: 100%; overflow-y: auto; padding-right: 5px; display: flex; flex-direction: column; gap: 10px; }
+        .settings-group { background: #ffffff; border: 1px solid #c8d4e0; border-radius: 4px; padding: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .settings-group h3 { margin: 0 0 10px 0; font-size: 12px; color: #003399; border-bottom: 1px solid #e0e8f0; padding-bottom: 4px; }
+
+        /* --- 4. THE LOGIN SCREEN --- */
+        #login-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(135deg, rgba(235, 245, 255, 0.8) 0%, rgba(180, 220, 255, 0.6) 100%);
-            backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px);
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            text-align: center; z-index: 20; padding: 40px; box-sizing: border-box;
-            transition: opacity 1.2s cubic-bezier(0.25, 1, 0.5, 1), transform 1.2s cubic-bezier(0.25, 1, 0.5, 1);
+            background-image: url('backgrounds/login background.jpg'); 
+            background-size: cover; background-position: center;
+            display: flex; justify-content: center; align-items: center; z-index: 9999; transition: opacity 1.5s ease;
         }
-        #info-panel.hidden { opacity: 0; transform: scale(1.05); pointer-events: none; }
+        #login-screen.hidden { opacity: 0; pointer-events: none; }
 
-        #info-panel h1 { font-size: 46px; margin: 0 0 10px 0; color: #003366; text-shadow: 0 4px 10px rgba(255,255,255,1); }
-        #info-panel p { font-size: 16px; line-height: 1.6; font-weight: 500; color: #002244; max-width: 600px; margin-bottom: 15px; text-shadow: 0 1px 2px rgba(255,255,255,0.8); }
-        .divider { width: 400px; height: 1px; background: linear-gradient(90deg, transparent 0%, rgba(0,51,102,0.3) 50%, transparent 100%); margin: 25px 0; }
-
-        /* Glossy Pill Button */
-        .aero-btn {
-            margin-top: 30px; padding: 15px 40px; border-radius: 30px;
-            background: linear-gradient(180deg, #66ccff 0%, #0088ff 49%, #0066cc 50%, #0055aa 100%);
-            border: 1px solid rgba(255, 255, 255, 0.8);
-            box-shadow: 0 8px 15px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.9);
-            color: white; font-weight: bold; font-size: 18px; text-shadow: 0 2px 4px rgba(0,0,0,0.6);
-            cursor: pointer; transition: all 0.2s ease;
-        }
-        .aero-btn:hover { transform: translateY(-3px) scale(1.02); box-shadow: 0 12px 20px rgba(0,0,0,0.4), inset 0 2px 4px rgba(255,255,255,1); filter: brightness(1.1); }
-        .aero-btn:active { transform: translateY(1px); box-shadow: 0 4px 8px rgba(0,0,0,0.3), inset 0 1px 2px rgba(255,255,255,0.5); }
-
-        /* 4. THE EXTERNAL ICON DOCK */
-        #sidebar-dock {
-            position: absolute; right: 30px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 25px; 
-            pointer-events: auto; z-index: 50;
-            transition: all 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
-        }
-        /* Pushes the dock off screen when a menu is active */
-        #sidebar-dock.dock-hidden { transform: translate(100px, -50%); opacity: 0; pointer-events: none; }
-
-        .aero-icon {
-            width: 90px; height: 100px; display: flex; flex-direction: column; align-items: center; justify-content: center;
-            background: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 12px;
-            box-shadow: 0 8px 15px rgba(0,0,0,0.3), inset 0 2px 5px rgba(255,255,255,0.5);
-            cursor: pointer; transition: all 0.2s ease; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-        }
-        .aero-icon:hover { transform: translateY(-5px) scale(1.05); background: rgba(255, 255, 255, 0.3); box-shadow: 0 12px 20px rgba(0,0,0,0.4), inset 0 2px 5px rgba(255,255,255,0.8); }
-        .aero-icon img { width: 42px; height: 42px; margin-bottom: 8px; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.4)); }
-        .aero-icon span { color: white; font-size: 11px; font-weight: 600; text-shadow: 0 2px 4px rgba(0,0,0,0.9); text-align: center; }
-
-        /* 5. THE NEW FULL-HEIGHT SIDE PANELS */
-        .aero-side-panel {
-            position: absolute; right: 0; top: 0; height: 100%; width: 340px; 
-            
-            /* Deep frosted glass with a glossy top highlight */
-            background: linear-gradient(135deg, rgba(240, 250, 255, 0.5) 0%, rgba(180, 215, 255, 0.3) 100%);
-            backdrop-filter: blur(30px) saturate(150%); -webkit-backdrop-filter: blur(30px) saturate(150%);
-            border-left: 1px solid rgba(255,255,255,0.7);
-            box-shadow: -15px 0 40px rgba(0,0,0,0.3), inset 2px 0 10px rgba(255,255,255,0.6);
-            
-            z-index: 100; display: flex; flex-direction: column;
-            
-            /* Hidden state: Pushed entirely off the right edge */
-            transform: translateX(100%); opacity: 0; pointer-events: none;
-            transition: all 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); 
-        }
+        .login-center { display: flex; align-items: center; gap: 30px; transform: translateY(-30px); }
+        .user-avatar { width: 110px; height: 110px; border-radius: 12px; position: relative; border: 3px solid rgba(255,255,255,0.9); box-shadow: 0 10px 25px rgba(0,0,0,0.5), inset 0 0 15px rgba(0,0,0,0.6); overflow: hidden; background: #fff; }
+        .user-avatar::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 50%; background: linear-gradient(180deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0) 100%); pointer-events: none; }
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
         
-        /* Active state: Slides into view */
-        .aero-side-panel.open { transform: translateX(0); opacity: 1; pointer-events: auto; }
-
-        .panel-header {
-            display: flex; align-items: center; gap: 15px;
-            background: linear-gradient(180deg, rgba(255,255,255,0.8) 0%, rgba(220,240,255,0.4) 100%);
-            padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.7);
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        }
+        .login-details { display: flex; flex-direction: column; }
+        .login-details h1 { color: #ffffff; font-size: 38px; font-weight: 400; margin: 0 0 10px 0; text-shadow: 0 2px 5px rgba(0,0,0,0.8); }
+        .login-action { display: flex; align-items: center; gap: 15px; }
+        .login-action span { color: #e0f0ff; font-size: 15px; text-shadow: 0 1px 3px rgba(0,0,0,0.9); font-weight: 500; }
         
-        .panel-header span { color: #003366; font-weight: 800; font-size: 18px; text-shadow: 0 1px 2px rgba(255,255,255,0.8); }
+        .vista-arrow-btn { width: 38px; height: 38px; border-radius: 50%; background: radial-gradient(circle at center, #55bbff 0%, #0066cc 100%); border: 2px solid rgba(255,255,255,0.9); box-shadow: 0 4px 10px rgba(0,0,0,0.5), inset 0 2px 5px rgba(255,255,255,0.9); color: white; font-size: 18px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; transition: all 0.2s ease; padding-bottom: 2px; box-sizing: border-box; }
+        .vista-arrow-btn:hover { transform: scale(1.1); filter: brightness(1.2); box-shadow: 0 6px 15px rgba(0,0,0,0.6); }
 
-        .back-btn {
-            background: linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(200,225,255,0.7) 100%);
-            border: 1px solid rgba(150, 180, 200, 0.8); border-radius: 20px;
-            padding: 6px 12px; color: #004488; font-weight: bold; font-size: 12px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1), inset 0 1px 2px rgba(255,255,255,1);
-            cursor: pointer; transition: all 0.2s;
-        }
-        .back-btn:hover { background: rgba(255,255,255,1); transform: scale(1.05); }
-
-        .panel-content { padding: 20px; flex-grow: 1; overflow-y: auto; }
-
-        /* --- 6. EXTREME FRUTIGER AERO LIL-GUI OVERRIDES --- */
+        /* --- 5. LIL-GUI (Vista Native Style) --- */
         .lil-gui { background: transparent !important; --background-color: transparent !important; width: 100% !important; font-family: "Segoe UI", sans-serif !important; }
         .lil-gui .title { display: none !important; } 
-        
-        /* GUI Rows (The label text) */
-        .lil-gui .controller { margin-bottom: 12px; color: #002244 !important; font-weight: 600; text-shadow: 0 1px 1px rgba(255,255,255,0.7); }
-        
-        /* Deep Glass Input Backgrounds */
-        .lil-gui input[type="text"], .lil-gui input[type="number"], .lil-gui select, .lil-gui .slider {
-            border-radius: 15px !important; 
-            background: rgba(255, 255, 255, 0.5) !important;
-            border: 1px solid rgba(255, 255, 255, 0.8) !important; 
-            box-shadow: inset 0 3px 5px rgba(0, 50, 100, 0.15) !important; 
-            color: #002244 !important; font-weight: bold;
-        }
-
-        /* 3D Liquid Gel Slider Fill */
-        .lil-gui .slider-fg {
-            /* The classic hard-stop gradient to simulate curved plastic/gel */
-            background: linear-gradient(180deg, #88d4ff 0%, #0099ff 49%, #0055cc 50%, #0077ee 100%) !important;
-            border-radius: 15px !important; 
-            box-shadow: inset 0 2px 2px rgba(255, 255, 255, 0.9), inset 0 -1px 2px rgba(0, 0, 0, 0.3) !important;
-        }
+        .lil-gui .controller { margin-bottom: 8px; color: #333 !important; font-weight: 400; font-size: 11px; }
+        .lil-gui input[type="text"], .lil-gui input[type="number"], .lil-gui select, .lil-gui .slider { border-radius: 2px !important; background: #fff !important; border: 1px solid #999 !important; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1) !important; color: #000 !important; }
+        .lil-gui .slider-fg { background: linear-gradient(180deg, #99ddff 0%, #0099ff 49%, #0066cc 50%, #0088ee 100%) !important; border-radius: 2px !important; }
     </style>
-    
     <script type="importmap">
       {
         "imports": {
@@ -149,41 +202,81 @@
 </head>
 <body>
 
-    <div id="sidebar-dock">
-        <div class="aero-icon" data-target="win-env">
-            <img src="icons/setting sidebar/environment.webp" alt="Globe">
-            <span>Environment</span>
+    <div id="desktop-layer" style="display: none;">
+        <div class="desktop-icon">
+            <img src="icons/desktop/recycle.webp" alt="Recycle Bin">
+            <span>Recycle Bin</span>
         </div>
-        <div class="aero-icon" data-target="win-terrain">
-            <img src="icons/setting sidebar/terrain.webp" alt="Terrain">
-            <span>Terrain Form</span>
-        </div>
-        <div class="aero-icon" data-target="win-water">
-            <img src="icons/setting sidebar/water.webp" alt="Water">
-            <span>Fluid Optics</span>
+        <div class="desktop-icon">
+            <img src="icons/desktop/user folder.png" alt="Documents">
+            <span>Documents</span>
         </div>
     </div>
 
-    <div id="win-env" class="aero-side-panel">
-        <div class="panel-header"><button class="back-btn">◄ Back</button><span>Environment</span></div>
-        <div class="panel-content" id="gui-env-container"></div>
-    </div>
-    <div id="win-terrain" class="aero-side-panel">
-        <div class="panel-header"><button class="back-btn">◄ Back</button><span>Terrain Configurator</span></div>
-        <div class="panel-content" id="gui-terrain-container"></div>
-    </div>
-    <div id="win-water" class="aero-side-panel">
-        <div class="panel-header"><button class="back-btn">◄ Back</button><span>Fluid Optics</span></div>
-        <div class="panel-content" id="gui-water-container"></div>
+    <div id="app-window" style="display: none;"> 
+        <div id="window-titlebar">
+            <div class="title-left">
+                <img src="icons/title/website title.webp" alt="App Icon">
+                <span>Whitewater Rapids Simulation Suite</span>
+            </div>
+            <div class="window-controls">
+                <div class="win-btn" id="btn-min">_</div>
+                <div class="win-btn">□</div>
+                <div class="win-btn btn-close" id="btn-close">X</div>
+            </div>
+        </div>
+        
+        <div class="window-content">
+            <div id="canvas-wrapper"></div>
+            <div id="settings-sidebar">
+                <div class="settings-group" id="gui-env-container"><h3>Environment</h3></div>
+                <div class="settings-group" id="gui-terrain-container"><h3>Terrain</h3></div>
+                <div class="settings-group" id="gui-water-container"><h3>Fluid Optics</h3></div>
+            </div>
+        </div>
     </div>
 
-    <div id="sim-container">
-        <div id="info-panel">
-            <h1>Whitewater Rapids</h1>
-            <p>A real-time 3D fluid dynamics simulation exploring the shallow water equations and procedural environment generation.</p>
-            <div class="divider"></div>
-            <p><strong>Developed for CS 335.</strong></p>
-            <button id="start-btn" class="aero-btn">Start Simulation</button>
+    <div id="vista-taskbar" style="display: none;"> 
+        <div id="start-orb">
+            <img src="icons/taskbar/windowsvista.webp" alt="Start">
+        </div>
+        
+        <div class="quick-launch">
+            <img src="icons/taskbar/internetexplorer.webp" alt="Internet" class="quick-icon">
+            <img src="icons/taskbar/file explorer.webp" alt="Media" class="quick-icon">
+        </div>
+
+        <div class="taskbar-apps-container">
+            <div class="taskbar-app active" id="taskbar-app">
+                <img src="icons/title/website title.webp" alt="App Icon">
+                <span>Whitewater Rapids Simulation Suite</span>
+            </div>
+            
+            <div class="taskbar-app inactive">
+                <img src="icons/taskbar/control panel.webp" alt="Explorer">
+                <span>Control Panel</span>
+            </div>
+        </div>
+
+        <div class="sys-tray">
+            <img src="icons/taskbar/network.webp" alt="Network" class="sys-icon">
+            <img src="icons/taskbar/volume.png" alt="Volume" class="sys-icon">
+            <span id="os-clock">12:00 PM</span>
+        </div>
+    </div>
+
+    <div id="login-screen">
+        <div class="login-center">
+            <div class="user-avatar">
+                <img src="icons/login/login pfp.jpg" alt="Avatar">
+            </div>
+            <div class="login-details">
+                <h1>Whitewater Rapids</h1>
+                <div class="login-action">
+                    <span id="login-status">Click to begin session</span>
+                    <button id="start-btn" class="vista-arrow-btn">➔</button>
+                </div>
+            </div>
         </div>
     </div>
     

@@ -6,9 +6,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { setupEnvironment } from './environment.js';
 import { setupGUI } from './guicontrols.js';
 
-
-//** website setup to contain simulation inside the container on webpage */
-const container = document.getElementById('sim-container');
+// ** CRITICAL FIX: Target the new 70% left column wrapper instead of the old full-screen container
+const container = document.getElementById('canvas-wrapper');
 
 // 1. Scene Setup
 const scene = new THREE.Scene();
@@ -33,7 +32,27 @@ const dirLight = new THREE.DirectionalLight(0xffffff, 1.5); // ** Simulate sunli
 dirLight.position.set(10, 20, 10);
 scene.add(dirLight);
 
-// ** intial gui settings
+// 5. Audio Setup
+const listener = new THREE.AudioListener();
+camera.add(listener);
+
+const bgMusic = new THREE.Audio(listener);
+const audioLoader = new THREE.AudioLoader();
+
+// Load your tasteful background music
+audioLoader.load('./sounds/background music/bgm.mp3', function(buffer) {
+    bgMusic.setBuffer(buffer);
+    bgMusic.setLoop(true);
+    bgMusic.setVolume(0.15); // Kept very quiet so it's not annoying
+});
+
+const startBGM = () => {
+    if (bgMusic.buffer && !bgMusic.isPlaying) {
+        bgMusic.play();
+    }
+};
+
+// ** initial gui settings
 const uiSettings = {
     showWireframe: false,
     timeOfDay: 'Day',
@@ -50,7 +69,11 @@ const uiSettings = {
 };
 
 const environmentTools = setupEnvironment(scene, uiSettings);
-setupGUI(uiSettings, environmentTools);
+
+setupGUI(uiSettings, { 
+    ...environmentTools, 
+    playBGM: startBGM 
+});
 
 // 8. Animation Loop
 function animate() {
@@ -60,8 +83,13 @@ function animate() {
 }
 animate();
 
-window.addEventListener('resize', () => {
-    camera.aspect = container.clientWidth / container.clientHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(container.clientWidth, container.clientHeight);
+// ** ANIMATION FIX: This ensures the 3D canvas recalculates its size 
+// continuously if the window is resizing or animating.
+const resizeObserver = new ResizeObserver(() => {
+    if (container.clientWidth > 0 && container.clientHeight > 0) {
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+    }
 });
+resizeObserver.observe(container);

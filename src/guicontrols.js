@@ -2,52 +2,108 @@ import GUI from 'lil-gui';
 
 export function setupGUI(uiSettings, callbacks) {
     
-    // --- 1. START BUTTON LOGIC ---
+    // --- 0. LOAD UI SOUND EFFECTS ---
+    const transitionSound = new Audio('./sounds/sound effects/simulation start.mp3');
+    transitionSound.volume = 0.3; 
+
+    // --- 1. LOGIN & BOOT SEQUENCE ---
+    const loginScreen = document.getElementById('login-screen');
     const startBtn = document.getElementById('start-btn');
-    const infoPanel = document.getElementById('info-panel'); 
+    const loginStatus = document.getElementById('login-status');
+    const appWindow = document.getElementById('app-window');
+    const taskbar = document.getElementById('vista-taskbar');
 
     startBtn.addEventListener('click', () => {
-        startBtn.innerText = "Initializing Environment...";
-        startBtn.style.background = "linear-gradient(180deg, #33aa55 0%, #008822 100%)";
+        transitionSound.play();
+        
+        loginStatus.innerText = "Welcome...";
+        startBtn.style.transform = "scale(0.95)";
+        startBtn.style.background = "radial-gradient(circle at center, #33aa55 0%, #008822 100%)";
+        
+        // Wait for chime, then boot to desktop
         setTimeout(() => {
-            infoPanel.classList.add('hidden');
-            console.log("Fluid simulation initialized. Focus mode active.");
-        }, 300); 
-    });
-
-    // --- 2. SLIDING PANEL LOGIC ---
-    const icons = document.querySelectorAll('.aero-icon');
-    const sidePanels = document.querySelectorAll('.aero-side-panel');
-    const backBtns = document.querySelectorAll('.back-btn');
-    const sidebarDock = document.getElementById('sidebar-dock');
-
-    // Helper to close all panels and show the dock again
-    function returnToDock() {
-        sidePanels.forEach(panel => panel.classList.remove('open'));
-        sidebarDock.classList.remove('dock-hidden');
-    }
-
-    // When an icon is clicked: Hide dock, open specific panel
-    icons.forEach(icon => {
-        icon.addEventListener('click', () => {
-            // Hide the desktop icons
-            sidebarDock.classList.add('dock-hidden');
+            loginScreen.classList.add('hidden');
             
-            // Open the target right-column panel
-            const targetId = icon.getAttribute('data-target');
-            document.getElementById(targetId).classList.add('open');
-        });
+            // Show the desktop elements
+            appWindow.style.display = 'flex';
+            taskbar.style.display = 'flex';
+            
+            // Start the BGM
+            callbacks.playBGM();
+            
+            // Remove login screen from DOM entirely after fade out
+            setTimeout(() => loginScreen.style.display = 'none', 1500); 
+
+            console.log("Logged into Vista Environment.");
+        }, 800); 
     });
 
-    // Wire up the glossy Back buttons
-    backBtns.forEach(btn => {
-        btn.addEventListener('click', returnToDock);
+    // --- 2. WINDOW MOVEMENT LOGIC (Dragging Math Fixed) ---
+    const titleBar = document.getElementById('window-titlebar');
+    let isDragging = false;
+    let offsetX, offsetY;
+
+    titleBar.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        
+        // Disable the minimize transition CSS temporarily so it doesn't cause a "floaty" jump
+        appWindow.style.transition = 'none';
+        
+        // Calculate where the center of the window is relative to the screen
+        const rect = appWindow.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        
+        // Calculate offset from your mouse to the center
+        offsetX = e.clientX - centerX;
+        offsetY = e.clientY - centerY;
     });
 
-    // --- 3. INJECTING LIL-GUI INTO THE SIDE PANELS ---
-    // (Your existing GUI logic stays exactly the same)
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        // Move the window's center based on mouse position minus the original offset
+        appWindow.style.left = (e.clientX - offsetX) + 'px';
+        appWindow.style.top = (e.clientY - offsetY) + 'px';
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (isDragging) {
+            isDragging = false;
+            // Restore the transition so the minimize/maximize animations work again
+            appWindow.style.transition = 'opacity 0.3s, transform 0.3s';
+        }
+    });
+
+    // --- 3. WINDOW CONTROLS LOGIC (Min/Close) ---
+    const btnMin = document.getElementById('btn-min');
+    const btnClose = document.getElementById('btn-close');
+    const taskbarApp = document.getElementById('taskbar-app');
+
+    // Minimize drops it to the taskbar
+    btnMin.addEventListener('click', () => {
+        appWindow.classList.add('minimized');
+    });
+
+    // Clicking the taskbar item restores it
+    taskbarApp.addEventListener('click', () => {
+        appWindow.classList.remove('minimized');
+    });
+
+    // Close hides it permanently
+    btnClose.addEventListener('click', () => {
+        appWindow.style.display = 'none';
+        taskbarApp.style.display = 'none';
+    });
+
+    // Simple OS Clock for the system tray
+    setInterval(() => {
+        const now = new Date();
+        document.getElementById('os-clock').innerText = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    }, 1000);
+
+
+    // --- 4. INJECTING LIL-GUI INTO THE APP WINDOW ---
     
-    // A. Environment
     const envContainer = document.getElementById('gui-env-container');
     const guiEnv = new GUI({ container: envContainer });
     guiEnv.add(uiSettings, 'showWireframe').name('Terrain Wireframe').onChange(callbacks.setWireframe);
@@ -55,7 +111,6 @@ export function setupGUI(uiSettings, callbacks) {
         console.log(`Scene changed to: ${time}`);
     });
 
-    // B. Terrain
     const terrainContainer = document.getElementById('gui-terrain-container');
     const guiTerrain = new GUI({ container: terrainContainer });
     guiTerrain.add(uiSettings, 'planeWidth', 20, 100).name('Map Width').onChange(callbacks.generateTerrain);
@@ -65,7 +120,6 @@ export function setupGUI(uiSettings, callbacks) {
     guiTerrain.add(uiSettings, 'cliffHeight', 0, 10).name('Waterfall Height').onChange(callbacks.generateTerrain);
     guiTerrain.add(uiSettings, 'flowSlope', 0, 0.5).name('Global Tilt').onChange(callbacks.generateTerrain);
 
-    // C. Water Optics
     const waterContainer = document.getElementById('gui-water-container');
     const guiWater = new GUI({ container: waterContainer });
     guiWater.addColor(uiSettings, 'waterColor').name('Water Color').onChange(callbacks.updateWater);
