@@ -12,33 +12,43 @@ export function setupGUI(uiSettings, callbacks) {
     const loginStatus = document.getElementById('login-status');
     const appWindow = document.getElementById('app-window');
     const taskbar = document.getElementById('vista-taskbar');
+    const desktop = document.getElementById('desktop-layer');
 
-    startBtn.addEventListener('click', () => {
+        startBtn.addEventListener('click', () => {
         transitionSound.play();
         
         loginStatus.innerText = "Welcome...";
-        startBtn.style.transform = "scale(0.95)";
+        // Removed the scale(0.95) line!
+        // Just turn the button green to indicate success
         startBtn.style.background = "radial-gradient(circle at center, #33aa55 0%, #008822 100%)";
         
         // Wait for chime, then boot to desktop
         setTimeout(() => {
             loginScreen.classList.add('hidden');
+            // ... the rest of the code stays exactly the same
             
             // Show the desktop elements
             appWindow.style.display = 'flex';
             taskbar.style.display = 'flex';
+            desktop.style.display = 'flex';
+            
+            // Trigger a window resize event so Three.js calculates the canvas size correctly!
+            window.dispatchEvent(new Event('resize'));
             
             // Start the BGM
             callbacks.playBGM();
             
-            // Remove login screen from DOM entirely after fade out
-            setTimeout(() => loginScreen.style.display = 'none', 1500); 
+            // Cleanup login screen and restore normal cursor after fade
+            setTimeout(() => {
+                loginScreen.style.display = 'none';
+                document.body.style.cursor = 'default';
+            }, 1500); 
 
             console.log("Logged into Vista Environment.");
         }, 800); 
     });
 
-    // --- 2. WINDOW MOVEMENT LOGIC (Dragging Math Fixed) ---
+    // --- 2. WINDOW MOVEMENT LOGIC ---
     const titleBar = document.getElementById('window-titlebar');
     let isDragging = false;
     let offsetX, offsetY;
@@ -46,22 +56,18 @@ export function setupGUI(uiSettings, callbacks) {
     titleBar.addEventListener('mousedown', (e) => {
         isDragging = true;
         
-        // Disable the minimize transition CSS temporarily so it doesn't cause a "floaty" jump
         appWindow.style.transition = 'none';
         
-        // Calculate where the center of the window is relative to the screen
         const rect = appWindow.getBoundingClientRect();
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
         
-        // Calculate offset from your mouse to the center
         offsetX = e.clientX - centerX;
         offsetY = e.clientY - centerY;
     });
 
     document.addEventListener('mousemove', (e) => {
         if (!isDragging) return;
-        // Move the window's center based on mouse position minus the original offset
         appWindow.style.left = (e.clientX - offsetX) + 'px';
         appWindow.style.top = (e.clientY - offsetY) + 'px';
     });
@@ -69,7 +75,6 @@ export function setupGUI(uiSettings, callbacks) {
     document.addEventListener('mouseup', () => {
         if (isDragging) {
             isDragging = false;
-            // Restore the transition so the minimize/maximize animations work again
             appWindow.style.transition = 'opacity 0.3s, transform 0.3s';
         }
     });
@@ -79,17 +84,14 @@ export function setupGUI(uiSettings, callbacks) {
     const btnClose = document.getElementById('btn-close');
     const taskbarApp = document.getElementById('taskbar-app');
 
-    // Minimize drops it to the taskbar
     btnMin.addEventListener('click', () => {
         appWindow.classList.add('minimized');
     });
 
-    // Clicking the taskbar item restores it
     taskbarApp.addEventListener('click', () => {
         appWindow.classList.remove('minimized');
     });
 
-    // Close hides it permanently
     btnClose.addEventListener('click', () => {
         appWindow.style.display = 'none';
         taskbarApp.style.display = 'none';
@@ -103,7 +105,6 @@ export function setupGUI(uiSettings, callbacks) {
 
 
     // --- 4. INJECTING LIL-GUI INTO THE APP WINDOW ---
-    
     const envContainer = document.getElementById('gui-env-container');
     const guiEnv = new GUI({ container: envContainer });
     guiEnv.add(uiSettings, 'showWireframe').name('Terrain Wireframe').onChange(callbacks.setWireframe);

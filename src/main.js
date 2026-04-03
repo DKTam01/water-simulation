@@ -40,7 +40,7 @@ const bgMusic = new THREE.Audio(listener);
 const audioLoader = new THREE.AudioLoader();
 
 // Load your tasteful background music
-audioLoader.load('./sounds/background music/bgm.mp3', function(buffer) {
+audioLoader.load('./sounds/background music/LEASE.mp3', function(buffer) {
     bgMusic.setBuffer(buffer);
     bgMusic.setLoop(true);
     bgMusic.setVolume(0.15); // Kept very quiet so it's not annoying
