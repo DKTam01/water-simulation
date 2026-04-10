@@ -6,7 +6,7 @@ export class ParticleFluid {
         this.renderer = renderer;
         this.uiSettings = uiSettings;
 
-        this.WIDTH = 128; 
+        this.WIDTH = uiSettings.particleResolution || 192; 
         this.particleCount = this.WIDTH * this.WIDTH; 
 
         // --- SPH Parameters (recalibrated for proper kernel math) ---

@@ -58,9 +58,9 @@ export class FluidRenderer {
             shallowR:           0.25,
             shallowG:           0.88,
             shallowB:           0.95,
-            absorbR:            0.42,
-            absorbG:            0.10,
-            absorbB:            0.03,
+            absorbR:            4.5,
+            absorbG:            1.5,
+            absorbB:            0.4,
             absorptionStrength: 0.20,
             ior:                1.33,    // index of refraction for water
             refractionStrength: 8.0,    // scale for physical refraction ray
@@ -266,11 +266,16 @@ export class FluidRenderer {
             vertexShader:   blurVertex,
             fragmentShader: blurFragment,
             uniforms: {
-                u_depthTexture:    { value: null },
-                u_direction:       { value: new THREE.Vector2(1, 0) },
-                u_resolution:      { value: new THREE.Vector2(this.fluidWidth, this.fluidHeight) },
-                u_blurRadius:      { value: p.blurRadius },
-                u_blurDepthFalloff:{ value: p.blurDepthFalloff },
+                u_depthTexture:        { value: null },
+                u_rangeRefTexture:     { value: null },  // depth ref for thickness blur (mode 1)
+                u_direction:           { value: new THREE.Vector2(1, 0) },
+                u_resolution:          { value: new THREE.Vector2(this.fluidWidth, this.fluidHeight) },
+                u_blurRadius:          { value: p.blurRadius },
+                u_blurDepthFalloff:    { value: p.blurDepthFalloff },
+                u_blurMode:            { value: 0 },     // 0 = depth, 1 = thickness
+                u_worldRadius:         { value: 0.0 },    // 0 = use fixed blur
+                u_projScale:           { value: 1.0 },    // projection._m00
+                u_maxScreenSpaceRadius:{ value: 15 },     // max kernel half-width
             },
         });
         this._blurPass = new FullscreenPass(this._blurMat);
@@ -316,6 +321,7 @@ export class FluidRenderer {
                 u_scatterStrength:    { value: p.scatterStrength },
                 u_surfaceExposure:    { value: p.surfaceExposure },
                 u_debugMode:          { value: 0.0 },
+                u_floorY:             { value: 0.0 },  // tank floor world Y (for refraction clamping)
             },
         });
         this._compPass = new FullscreenPass(this._compMat);
@@ -350,14 +356,22 @@ export class FluidRenderer {
                 tankMesh.scale.y * 0.5,
                 tankMesh.scale.z * 0.5,
             );
+            // Floor Y is the bottom of the tank bounding box (center.y - halfSize.y)
+            this._compMat.uniforms.u_floorY.value = tankMesh.position.y - tankMesh.scale.y * 0.5;
         }
     }
 
     // -----------------------------------------------------------------------
     // Helpers: run H then V blur N times on a source texture,
-    // ping-ponging between rtH and rtV.  Returns the texture of the last V pass.
+    // ping-ponging between rtH and rtV.
+    //
+    // mode 0 = depth blur (self-referencing)
+    // mode 1 = thickness blur (uses rangeRefTexture for bilateral range)
     // -----------------------------------------------------------------------
-    _runBlurPasses(srcTexture, rtH, rtV, iterations) {
+    _runBlurPasses(srcTexture, rtH, rtV, iterations, mode = 0, rangeRefTexture = null) {
+        this._blurMat.uniforms.u_blurMode.value = mode;
+        this._blurMat.uniforms.u_rangeRefTexture.value = rangeRefTexture;
+
         let current = srcTexture;
         for (let i = 0; i < iterations; i++) {
             this._blurMat.uniforms.u_depthTexture.value = current;
@@ -430,10 +444,14 @@ export class FluidRenderer {
         renderer.clear();
         renderer.render(this._foamScene, camera);
 
-        // Passes 4+: bilateral blur on depth (N iterations)
+        // Pass projection scale to blur shader for screen-space adaptive radius
+        this._blurMat.uniforms.u_projScale.value = camera.projectionMatrix.elements[0]; // _m00
+
+        // Passes 4+: bilateral blur on depth (N iterations, mode 0 = self-ref)
         const iters     = Math.max(1, Math.round(this.params.blurIterations));
-        const blurredDepth    = this._runBlurPasses(this.depthRT.texture,    this.blurHRT,      this.blurVRT,      iters);
-        const blurredThickness = this._runBlurPasses(this.thicknessRT.texture, this.thickBlurHRT, this.thickBlurVRT, iters);
+        const blurredDepth    = this._runBlurPasses(this.depthRT.texture,    this.blurHRT,      this.blurVRT,      iters, 0, null);
+        // Thickness blur: mode 1, use raw depth as bilateral range reference (SebLague SmoothThickPrepare)
+        const blurredThickness = this._runBlurPasses(this.thicknessRT.texture, this.thickBlurHRT, this.thickBlurVRT, iters, 1, this.depthRT.texture);
 
         // Final composite
         this._compMat.uniforms.u_sceneColor.value     = this.sceneRT.texture;

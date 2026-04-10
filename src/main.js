@@ -97,7 +97,11 @@ scene.add(ballMesh);
 // ---------------------------------------------------------------------------
 // 5. Fluid simulation
 // ---------------------------------------------------------------------------
-const fluid = new ParticleFluid(renderer, scene, {});
+const particleSettings = { particleResolution: 128 };
+// Restore saved particle resolution from localStorage (set by the GUI dropdown)
+const savedRes = localStorage.getItem('particleResolution');
+if (savedRes) particleSettings.particleResolution = parseInt(savedRes, 10);
+const fluid = new ParticleFluid(renderer, scene, particleSettings);
 
 // ---------------------------------------------------------------------------
 // 6. Tank wireframe (synced to boxSize slider every frame)
@@ -382,6 +386,15 @@ const simFolder = gui.addFolder('Simulation Presets');
 simFolder.add(simPresets, 'Reset (default)');
 simFolder.add(simPresets, 'Dam Break');
 simFolder.add(simPresets, 'Breaking Wave');
+simFolder.add(particleSettings, 'particleResolution', { '128×128 (16k)': 128, '192×192 (37k)': 192, '256×256 (65k)': 256 })
+    .name('Particle Count')
+    .onChange(() => {
+        if (confirm('Changing particle count requires a page reload. Reload now?')) {
+            // Store setting and reload
+            localStorage.setItem('particleResolution', particleSettings.particleResolution);
+            location.reload();
+        }
+    });
 simFolder.open();
 
 renderFolder.open();
