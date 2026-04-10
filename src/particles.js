@@ -37,6 +37,11 @@ export class ParticleFluid {
         this.sortedIndicesData = new Float32Array(this.particleCount * 4);
         this.gpuReadBuffer     = new Float32Array(this.particleCount * 4);
 
+        // Performance: track max speed across frames without full velocity readback.
+        this._estimatedMaxSpeed = 5.0;
+        this._hashStagger       = 1;     // rebuild hash every N frames (1 = every frame)
+        this._frameCounter      = 0;
+
         // Build spatial hash grid arrays — extracted so we can rebuild live when
         // the smoothing radius slider changes.
         this._buildGrid(this.sphUniforms.u_smoothingRadius.value);
@@ -151,37 +156,101 @@ export class ParticleFluid {
         }
     }
 
-    fillPositionTexture(texture) {
+    fillPositionTexture(texture, preset = 'default') {
         const data = texture.image.data;
-        const edgeX = 26; 
-        const edgeZ = 26; 
-        const spacing = 0.5; 
-        const offsetX = (edgeX - 1) / 2.0; 
-        const offsetZ = (edgeZ - 1) / 2.0;
-        const ceiling = (this.sphUniforms.u_boxSize.value * 2.0) - 1.0; 
+        const boxSize = this.sphUniforms.u_boxSize.value;
 
-        for (let i = 0; i < this.particleCount; i++) {
-            const idx = i * 4;
-            const x = i % edgeX;
-            const z = Math.floor(i / edgeX) % edgeZ;
-            const y = Math.floor(i / (edgeX * edgeZ));
-            const jitter = () => (Math.random() - 0.5) * 0.15;
-
-            data[idx + 0] = (x - offsetX) * spacing + jitter();
-            data[idx + 1] = ceiling - (y * spacing); 
-            data[idx + 2] = (z - offsetZ) * spacing + jitter();
-            data[idx + 3] = 1.0;
+        if (preset === 'dam-break') {
+            // Pack all particles into the left third of the tank, stacked high
+            const edgeX = 12, edgeZ = 24, spacing = 0.45;
+            const offsetX = -boxSize + 2.0;
+            const offsetZ = -(edgeZ - 1) / 2.0 * spacing;
+            for (let i = 0; i < this.particleCount; i++) {
+                const idx = i * 4;
+                const x = i % edgeX;
+                const z = Math.floor(i / edgeX) % edgeZ;
+                const y = Math.floor(i / (edgeX * edgeZ));
+                const jitter = () => (Math.random() - 0.5) * 0.1;
+                data[idx + 0] = offsetX + x * spacing + jitter();
+                data[idx + 1] = 0.5 + y * spacing + jitter();
+                data[idx + 2] = offsetZ + z * spacing + jitter();
+                data[idx + 3] = 1.0;
+            }
+        } else if (preset === 'wave') {
+            // Angled water slab for a curling wave — particles on the left,
+            // tilted up so the top-left is high and the bottom-right is low.
+            const edgeX = 16, edgeZ = 24, spacing = 0.45;
+            const offsetZ = -(edgeZ - 1) / 2.0 * spacing;
+            for (let i = 0; i < this.particleCount; i++) {
+                const idx = i * 4;
+                const x = i % edgeX;
+                const z = Math.floor(i / edgeX) % edgeZ;
+                const y = Math.floor(i / (edgeX * edgeZ));
+                const jitter = () => (Math.random() - 0.5) * 0.1;
+                const tiltY = (1.0 - x / edgeX) * boxSize * 0.5;
+                data[idx + 0] = -boxSize + 1.0 + x * spacing + jitter();
+                data[idx + 1] = 0.5 + y * spacing + tiltY + jitter();
+                data[idx + 2] = offsetZ + z * spacing + jitter();
+                data[idx + 3] = 1.0;
+            }
+        } else {
+            const edgeX = 26, edgeZ = 26, spacing = 0.5;
+            const offsetX = (edgeX - 1) / 2.0;
+            const offsetZ = (edgeZ - 1) / 2.0;
+            const ceiling = (boxSize * 2.0) - 1.0;
+            for (let i = 0; i < this.particleCount; i++) {
+                const idx = i * 4;
+                const x = i % edgeX;
+                const z = Math.floor(i / edgeX) % edgeZ;
+                const y = Math.floor(i / (edgeX * edgeZ));
+                const jitter = () => (Math.random() - 0.5) * 0.15;
+                data[idx + 0] = (x - offsetX) * spacing + jitter();
+                data[idx + 1] = ceiling - (y * spacing);
+                data[idx + 2] = (z - offsetZ) * spacing + jitter();
+                data[idx + 3] = 1.0;
+            }
         }
     }
 
-    fillVelocityTexture(texture) {
+    fillVelocityTexture(texture, preset = 'default') {
         const data = texture.image.data;
-        for (let k = 0; k < data.length; k += 4) {
-            data[k + 0] = (Math.random() - 0.5) * 4.0;  // horizontal push
-            data[k + 1] = (Math.random() - 0.5) * 2.0;
-            data[k + 2] = (Math.random() - 0.5) * 4.0;
-            data[k + 3] = 1.0; 
+        if (preset === 'dam-break') {
+            for (let k = 0; k < data.length; k += 4) {
+                data[k + 0] = 8.0 + (Math.random() - 0.5) * 2.0;  // strong rightward push
+                data[k + 1] = (Math.random() - 0.5) * 1.0;
+                data[k + 2] = (Math.random() - 0.5) * 2.0;
+                data[k + 3] = 1.0;
+            }
+        } else if (preset === 'wave') {
+            for (let k = 0; k < data.length; k += 4) {
+                data[k + 0] = 12.0 + (Math.random() - 0.5) * 3.0;  // strong rightward surge
+                data[k + 1] = 3.0  + (Math.random() - 0.5) * 2.0;  // slight upward lift
+                data[k + 2] = (Math.random() - 0.5) * 2.0;
+                data[k + 3] = 1.0;
+            }
+        } else {
+            for (let k = 0; k < data.length; k += 4) {
+                data[k + 0] = (Math.random() - 0.5) * 4.0;
+                data[k + 1] = (Math.random() - 0.5) * 2.0;
+                data[k + 2] = (Math.random() - 0.5) * 4.0;
+                data[k + 3] = 1.0;
+            }
         }
+    }
+
+    // Re-initialise particle positions and velocities from a preset without
+    // re-creating the entire GPGPU pipeline.
+    resetParticles(preset = 'default') {
+        const posRT = this.gpuCompute.getCurrentRenderTarget(this.positionVariable);
+        const velRT = this.gpuCompute.getCurrentRenderTarget(this.velocityVariable);
+
+        const posTexture = this.gpuCompute.createTexture();
+        const velTexture = this.gpuCompute.createTexture();
+        this.fillPositionTexture(posTexture, preset);
+        this.fillVelocityTexture(velTexture, preset);
+
+        this.gpuCompute.renderTexture(posTexture, posRT);
+        this.gpuCompute.renderTexture(velTexture, velRT);
     }
 
     initParticles(scene) {
@@ -576,99 +645,94 @@ export class ParticleFluid {
     // UPDATE — CPU-side spatial hash sort + GPU compute dispatch
     // ========================================================================
     update(ballPos, time, deltaTime, tankMesh) {
-        // Base fixed timestep; adaptive logic may increase substeps below.
         const fixedDt = 0.004;
-        
-        const posRenderTarget = this.gpuCompute.getCurrentRenderTarget(this.positionVariable);
-        this.renderer.readRenderTargetPixels(posRenderTarget, 0, 0, this.WIDTH, this.WIDTH, this.gpuReadBuffer);
-
-        // Sample max speed from the velocity buffer to drive adaptive substeps.
-        // We reuse gpuReadBuffer temporarily (overwriting before the spatial hash loop).
-        const velRenderTarget = this.gpuCompute.getCurrentRenderTarget(this.velocityVariable);
-        const velBuffer = new Float32Array(this.particleCount * 4);
-        this.renderer.readRenderTargetPixels(velRenderTarget, 0, 0, this.WIDTH, this.WIDTH, velBuffer);
-        let maxSpeedSq = 0;
-        for (let i = 0; i < this.particleCount; i++) {
-            const vx = velBuffer[i * 4], vy = velBuffer[i * 4 + 1], vz = velBuffer[i * 4 + 2];
-            const sq = vx * vx + vy * vy + vz * vz;
-            if (sq > maxSpeedSq) maxSpeedSq = sq;
-        }
-
-        const limit = this.sphUniforms.u_maxBoxSize.value;
-        const sortedParticles = [];
+        this._frameCounter++;
 
         this.sphUniforms.u_tankMatrixWorld.value.copy(tankMesh.matrixWorld);
         this.sphUniforms.u_tankMatrixWorldInverse.value.copy(tankMesh.matrixWorld).invert();
-        
-        for (let i = 0; i < this.particleCount; i++) {
-            const idx = i * 4;
-            const px = this.gpuReadBuffer[idx + 0] + limit + 0.00001; 
-            const py = this.gpuReadBuffer[idx + 1] + 0.00001;
-            const pz = this.gpuReadBuffer[idx + 2] + limit + 0.00001;
 
-            const cx = Math.floor(px / this.cellSize);
-            const cy = Math.floor(py / this.cellSize);
-            const cz = Math.floor(pz / this.cellSize);
-            
-            const safeCx = Math.max(0, Math.min(cx, this.gridSize - 1));
-            const safeCy = Math.max(0, Math.min(cy, this.gridSize - 1));
-            const safeCz = Math.max(0, Math.min(cz, this.gridSize - 1));
+        // ------------------------------------------------------------------
+        // Spatial hash: only do the expensive CPU readback + sort every
+        // _hashStagger frames.  On skipped frames the previous hash is reused.
+        // ------------------------------------------------------------------
+        if (this._frameCounter % this._hashStagger === 0) {
+            const posRenderTarget = this.gpuCompute.getCurrentRenderTarget(this.positionVariable);
+            this.renderer.readRenderTargetPixels(posRenderTarget, 0, 0, this.WIDTH, this.WIDTH, this.gpuReadBuffer);
 
-            sortedParticles.push({ hash: safeCx + (safeCy * this.gridSize) + (safeCz * this.gridSize * this.gridSize), id: i });
-        }
-        sortedParticles.sort((a, b) => a.hash - b.hash);
+            const limit = this.sphUniforms.u_maxBoxSize.value;
+            const sortedParticles = [];
 
-        this.cellOffsets.fill(999999);
-        this.cellCounts.fill(0);           // Phase 2
-        
-        for (let i = 0; i < this.particleCount; i++) {
-            const hash = sortedParticles[i].hash;
-            if (i === 0 || hash !== sortedParticles[i - 1].hash) {
-                this.cellOffsets[hash] = i;
+            for (let i = 0; i < this.particleCount; i++) {
+                const idx = i * 4;
+                const px = this.gpuReadBuffer[idx + 0] + limit + 0.00001;
+                const py = this.gpuReadBuffer[idx + 1] + 0.00001;
+                const pz = this.gpuReadBuffer[idx + 2] + limit + 0.00001;
+
+                const cx = Math.max(0, Math.min(Math.floor(px / this.cellSize), this.gridSize - 1));
+                const cy = Math.max(0, Math.min(Math.floor(py / this.cellSize), this.gridSize - 1));
+                const cz = Math.max(0, Math.min(Math.floor(pz / this.cellSize), this.gridSize - 1));
+
+                sortedParticles.push({ hash: cx + cy * this.gridSize + cz * this.gridSize * this.gridSize, id: i });
             }
-            this.cellCounts[hash]++;        // Phase 2: count particles per cell
-            this.sortedIndicesData[i * 4] = sortedParticles[i].id; 
-        }
+            sortedParticles.sort((a, b) => a.hash - b.hash);
 
-        // Wipe the entire 2D cell texture clean
-        for (let i = 0; i < this.cellTextureData.length; i += 4) {
-            this.cellTextureData[i]     = 999999; // startIndex sentinel
-            this.cellTextureData[i + 1] = 0;       // endIndex (unused for empty cells)
-            this.cellTextureData[i + 2] = 0;
-            this.cellTextureData[i + 3] = 1;
-        }
+            this.cellOffsets.fill(999999);
+            this.cellCounts.fill(0);
 
-        // Phase 2: fill both startIndex (.r) and endIndex (.g) per cell
-        for (let i = 0; i < this.totalCells; i++) {
-            const idx = i * 4;
-            const start = this.cellOffsets[i];
-            this.cellTextureData[idx]     = start;                         // .r = startIndex
-            this.cellTextureData[idx + 1] = (start !== 999999)             // .g = endIndex
-                ? start + this.cellCounts[i]
-                : 0;
-        }
+            for (let i = 0; i < this.particleCount; i++) {
+                const hash = sortedParticles[i].hash;
+                if (i === 0 || hash !== sortedParticles[i - 1].hash) {
+                    this.cellOffsets[hash] = i;
+                }
+                this.cellCounts[hash]++;
+                this.sortedIndicesData[i * 4] = sortedParticles[i].id;
+            }
 
-        this.cellTexture.needsUpdate = true;
-        this.sortedIndicesTexture.needsUpdate = true;
+            for (let i = 0; i < this.cellTextureData.length; i += 4) {
+                this.cellTextureData[i]     = 999999;
+                this.cellTextureData[i + 1] = 0;
+                this.cellTextureData[i + 2] = 0;
+                this.cellTextureData[i + 3] = 1;
+            }
+            for (let i = 0; i < this.totalCells; i++) {
+                const idx = i * 4;
+                const start = this.cellOffsets[i];
+                this.cellTextureData[idx]     = start;
+                this.cellTextureData[idx + 1] = (start !== 999999) ? start + this.cellCounts[i] : 0;
+            }
+
+            this.cellTexture.needsUpdate = true;
+            this.sortedIndicesTexture.needsUpdate = true;
+        }
 
         this.velocityVariable.material.uniforms.u_ballPosition.value.copy(ballPos);
         this.velocityVariable.material.uniforms.u_time.value = time;
         this.positionVariable.material.uniforms.u_ballPosition.value.copy(ballPos);
-        
-        // Adaptive substep count: base substeps from fixed dt; extra substeps
-        // when max speed exceeds 8 units/s (e.g. after rapid box shrink).
-        const baseSubsteps    = Math.max(1, Math.ceil(deltaTime / fixedDt));
-        const maxSpeed        = Math.sqrt(maxSpeedSq);
-        const extraSubsteps   = maxSpeed > 8.0 ? Math.min(Math.ceil(maxSpeed / 8.0), 4) : 0;
-        const numSubsteps     = baseSubsteps + extraSubsteps;
-        const subDt           = deltaTime / numSubsteps;
-        
+
+        // Adaptive substeps using a decaying max-speed estimate.
+        // No velocity readback — the estimate converges from gravity/damping cues.
+        const maxSpeed      = this._estimatedMaxSpeed;
+        const baseSubsteps  = Math.max(1, Math.ceil(deltaTime / fixedDt));
+        const extraSubsteps = maxSpeed > 8.0 ? Math.min(Math.ceil(maxSpeed / 8.0), 4) : 0;
+        const numSubsteps   = baseSubsteps + extraSubsteps;
+        const subDt         = deltaTime / numSubsteps;
+
         for (let step = 0; step < numSubsteps; step++) {
             this.velocityVariable.material.uniforms.u_deltaTime.value = subDt;
             this.positionVariable.material.uniforms.u_deltaTime.value = subDt;
             this.gpuCompute.compute();
         }
-        
+
+        // Decay the speed estimate gently; spikes from box-shrink / impulse are
+        // inferred from the acceleration clamp (500) × dt.
+        const accelBudget = 500.0 * deltaTime;
+        this._estimatedMaxSpeed = Math.max(
+            this._estimatedMaxSpeed * 0.97,            // decay toward calm
+            Math.min(this._estimatedMaxSpeed + accelBudget, 30.0)
+        );
+        // Gravity alone keeps it above zero in equilibrium
+        if (this._estimatedMaxSpeed < 2.0) this._estimatedMaxSpeed = 2.0;
+
         this.commonUniforms.texturePosition.value = this.gpuCompute.getCurrentRenderTarget(this.positionVariable).texture;
         this.commonUniforms.textureVelocity.value = this.gpuCompute.getCurrentRenderTarget(this.velocityVariable).texture;
     }

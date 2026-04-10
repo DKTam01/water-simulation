@@ -164,7 +164,20 @@ renderFolder.add(rp, 'detailNormalBlend', 0.0, 1.0, 0.01).name('Detail Normals')
 renderFolder.add(rp, 'envMapIntensity', 0.0, 3.0, 0.05).name('Env Reflection')
     .onChange(v => fluidRenderer.setEnvMapIntensity(v));
 
-renderFolder.add(rp, 'debugMode', { 'Final': 0.0, 'Depth': 1.0, 'Thickness': 2.0, 'Normals': 3.0 })
+renderFolder.add(rp, 'causticsStrength', 0.0, 2.0, 0.05).name('Floor Caustics')
+    .onChange(v => fluidRenderer.setCausticsStrength(v));
+
+renderFolder.add(rp, 'foamScale', 0.0, 3.0, 0.05).name('Foam Intensity')
+    .onChange(v => fluidRenderer.setFoamScale(v));
+renderFolder.add(rp, 'foamSpeedMin', 0.0, 10.0, 0.5).name('Foam Speed Min')
+    .onChange(v => fluidRenderer.setFoamSpeedMin(v));
+renderFolder.add(rp, 'foamSpeedMax', 1.0, 30.0, 0.5).name('Foam Speed Max')
+    .onChange(v => fluidRenderer.setFoamSpeedMax(v));
+
+renderFolder.add(rp, 'fluidScale', 0.25, 1.0, 0.05).name('Fluid Resolution')
+    .onChange(v => fluidRenderer.setFluidScale(v));
+
+renderFolder.add(rp, 'debugMode', { 'Final': 0.0, 'Depth': 1.0, 'Thickness': 2.0, 'Normals': 3.0, 'Foam': 4.0 })
     .name('Debug View')
     .onChange(v => fluidRenderer.setDebugMode(parseFloat(v)));
 
@@ -180,6 +193,10 @@ const presets = {
         fluidRenderer.setRefractionStrength(6.0);
         fluidRenderer.setDetailNormalBlend(0.35);
         fluidRenderer.setEnvMapIntensity(1.2);
+        fluidRenderer.setFoamScale(1.2);
+        fluidRenderer.setFoamSpeedMin(2.5);
+        fluidRenderer.setFoamSpeedMax(10.0);
+        fluidRenderer.setFluidScale(0.5);
         uniforms.u_agitation.value = 1.5;
         uniforms.u_viscosityMultiplier.value = 0.15;
         renderFolder.controllersRecursive().forEach(c => c.updateDisplay());
@@ -195,6 +212,10 @@ const presets = {
         fluidRenderer.setRefractionStrength(8.0);
         fluidRenderer.setDetailNormalBlend(0.15);
         fluidRenderer.setEnvMapIntensity(1.0);
+        fluidRenderer.setFoamScale(1.0);
+        fluidRenderer.setFoamSpeedMin(3.0);
+        fluidRenderer.setFoamSpeedMax(12.0);
+        fluidRenderer.setFluidScale(0.5);
         uniforms.u_agitation.value = 0.8;
         uniforms.u_viscosityMultiplier.value = 0.3;
         renderFolder.controllersRecursive().forEach(c => c.updateDisplay());
@@ -210,6 +231,10 @@ const presets = {
         fluidRenderer.setRefractionStrength(10.0);
         fluidRenderer.setDetailNormalBlend(0.05);
         fluidRenderer.setEnvMapIntensity(1.0);
+        fluidRenderer.setFoamScale(0.4);
+        fluidRenderer.setFoamSpeedMin(5.0);
+        fluidRenderer.setFoamSpeedMax(15.0);
+        fluidRenderer.setFluidScale(0.75);
         uniforms.u_agitation.value = 0.2;
         uniforms.u_viscosityMultiplier.value = 0.5;
         renderFolder.controllersRecursive().forEach(c => c.updateDisplay());
@@ -222,6 +247,18 @@ presetsFolder.add(presets, 'Choppy Waves').name('Choppy Waves');
 presetsFolder.add(presets, 'Balanced').name('Balanced (default)');
 presetsFolder.add(presets, 'Calm Pool').name('Calm Pool');
 presetsFolder.open();
+
+// -- Simulation presets / demos -----------------------------------------------
+const simPresets = {
+    'Reset (default)'()  { fluid.resetParticles('default'); },
+    'Dam Break'()        { fluid.resetParticles('dam-break'); },
+    'Breaking Wave'()    { fluid.resetParticles('wave'); },
+};
+const simFolder = gui.addFolder('Simulation Presets');
+simFolder.add(simPresets, 'Reset (default)');
+simFolder.add(simPresets, 'Dam Break');
+simFolder.add(simPresets, 'Breaking Wave');
+simFolder.open();
 
 renderFolder.open();
 

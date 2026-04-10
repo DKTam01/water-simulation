@@ -20,14 +20,15 @@ uniform mat4 u_inverseView;       // camera matrixWorld (view-to-world)
 uniform mat4 u_cameraProjection;  // scene camera projection matrix (for exit-point reprojection)
 
 // Water look parameters
-uniform vec3 u_waterColor;
-uniform vec3 u_absorptionColor;   // per-channel Beer-Lambert extinction coefficients
+uniform vec3 u_waterColor;         // deep water tint (applied to thick regions)
+uniform vec3 u_shallowColor;      // thin-edge tint (bright teal)
+uniform vec3 u_absorptionColor;    // per-channel Beer-Lambert extinction coefficients
 uniform float u_absorptionStrength;
-uniform float u_ior;              // index of refraction (default 1.33 for water)
+uniform float u_ior;               // index of refraction (default 1.33 for water)
 uniform float u_refractionStrength;
 uniform float u_specularStrength;
 uniform float u_normalScale;
-uniform vec3 u_lightDirView;      // light direction in view space
+uniform vec3 u_lightDirView;       // light direction in view space
 
 // Tank bounding box in world space — used for edge normal smoothing.
 // boundsHalfSize = boxSize (half-size, since tank is centred at boundsCenter).
@@ -38,7 +39,13 @@ uniform vec3 u_boundsHalfSize;
 uniform samplerCube u_envMap;
 uniform float u_envMapIntensity;
 
-// Debug: 0=final, 1=depth, 2=thickness, 3=normals
+// Foam
+uniform sampler2D u_foamTexture;
+
+// Floor caustics
+uniform float u_causticsStrength;
+
+// Debug: 0=final, 1=depth, 2=thickness, 3=normals, 4=foam
 uniform float u_debugMode;
 
 varying vec2 vUv;
@@ -190,6 +197,13 @@ void main() {
         return;
     }
 
+    // ---- Debug: foam view ---------------------------------------------------
+    if (u_debugMode > 3.5 && u_debugMode < 4.5) {
+        float f = texture2D(u_foamTexture, vUv).r;
+        gl_FragColor = vec4(f, f, f, 1.0);
+        return;
+    }
+
     // ---- No fluid at this pixel — show background --------------------------
     if (fluidDepth < 0.001) {
         gl_FragColor = sceneColor;
@@ -238,6 +252,27 @@ void main() {
     vec3 worldReflectDir = normalize((u_inverseView * vec4(viewReflectDir, 0.0)).xyz);
     vec3 skyCol = sampleEnvironment(worldReflectDir);
 
+    // ---- Fake caustics: surface curvature → floor brightness shimmer --------
+    // Approximates the Laplacian of the depth field: converging normals brighten,
+    // diverging normals darken. The result modulates the refracted floor colour.
+    float caustics = 0.0;
+    if (u_causticsStrength > 0.001) {
+        vec2 ts = 1.0 / u_resolution;
+        float d0 = fluidDepth;
+        float dL = texture2D(u_fluidDepth, vUv - vec2(ts.x, 0.0)).r;
+        float dR = texture2D(u_fluidDepth, vUv + vec2(ts.x, 0.0)).r;
+        float dD = texture2D(u_fluidDepth, vUv - vec2(0.0, ts.y)).r;
+        float dU = texture2D(u_fluidDepth, vUv + vec2(0.0, ts.y)).r;
+        // Replace missing neighbors with center depth to avoid edge artifacts
+        if (dL < 0.001) dL = d0;
+        if (dR < 0.001) dR = d0;
+        if (dD < 0.001) dD = d0;
+        if (dU < 0.001) dU = d0;
+        float laplacian = (dL + dR + dD + dU - 4.0 * d0);
+        // Amplify and map to a brightness multiplier around 1.0
+        caustics = laplacian * u_causticsStrength * 80.0;
+    }
+
     // ---- Physical refraction ------------------------------------------------
     // Compute refracted ray direction in view space, then project exit point
     // back to a screen UV to sample the scene.
@@ -258,17 +293,31 @@ void main() {
     vec2 refractUV   = clamp(exitNDC * 0.5 + 0.5, vec2(0.001), vec2(0.999));
     vec3 refractedScene = texture2D(u_sceneColor, refractUV).rgb;
 
+    // Apply caustics shimmer to the refracted floor.
+    refractedScene *= 1.0 + caustics;
+
     // ---- Beer-Lambert absorption --------------------------------------------
     vec3 transmission = exp(-u_absorptionColor * u_absorptionStrength * thickness);
     vec3 refracted    = refractedScene * transmission;
+
+    // ---- Depth-dependent water tint -----------------------------------------
+    // Thin edges get a bright shallow tint; thick interior gets the deep color.
+    float depthBlend = 1.0 - exp(-thickness * u_absorptionStrength * 2.0);
+    vec3 waterTint   = mix(u_shallowColor, u_waterColor, depthBlend);
 
     // ---- Blinn-Phong specular -----------------------------------------------
     vec3 halfVec = normalize(u_lightDirView + viewDir);
     float spec   = pow(max(dot(normal, halfVec), 0.0), 96.0) * u_specularStrength;
 
-    // ---- Final composite: refracted base + Fresnel reflection + specular ----
-    vec3 waterBase = mix(refracted, refracted * u_waterColor, 0.25);
+    // ---- Final composite: refracted base + tint + Fresnel + specular --------
+    vec3 waterBase = mix(refracted, refracted * waterTint, 0.35);
     vec3 color     = mix(waterBase, skyCol, clamp(fresnel, 0.0, 1.0)) + vec3(spec);
+
+    // ---- Foam overlay: velocity-driven white foam on top of liquid ----------
+    float foam = texture2D(u_foamTexture, vUv).r;
+    foam = clamp(foam, 0.0, 1.0);
+    // Foam is brightest near the surface (thin regions) and on fast splashes.
+    color = mix(color, vec3(1.0), foam);
 
     gl_FragColor = vec4(color, 1.0);
 }
