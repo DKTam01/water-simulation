@@ -15,7 +15,7 @@ export class ParticleFluid {
             u_targetDensity: { value: 20.0 },
             u_pressureMultiplier: { value: 20.0 },
             u_nearPressureMultiplier: { value: 10.0 },
-            u_viscosityMultiplier: { value: 0.3 },
+            u_viscosityMultiplier: { value: 0.22 },
             u_mass: { value: 1.0 },
             u_resolution: { value: new THREE.Vector2(this.WIDTH, this.WIDTH) },
             u_boxSize: { value: 11.0 },         
@@ -25,9 +25,9 @@ export class ParticleFluid {
             u_time: { value: 0.0 },
             u_deltaTime: { value: 0.016 },
             u_gravity: { value: -18.0 },
-            u_collisionDamping: { value: 0.5 },
+            u_collisionDamping: { value: 0.44 },
             
-            u_agitation: { value: 0.8 },
+            u_agitation: { value: 1.15 },
 
             u_tankMatrixWorld: { value: new THREE.Matrix4() },
             u_tankMatrixWorldInverse: { value: new THREE.Matrix4() }
@@ -269,7 +269,8 @@ export class ParticleFluid {
         
         this.commonUniforms = {
             texturePosition: { value: null },
-            textureVelocity: { value: null }
+            textureVelocity: { value: null },
+            textureDensity:  { value: null }
         };
 
         material.onBeforeCompile = (shader) => {
@@ -549,7 +550,7 @@ export class ParticleFluid {
                 vec3 toBall = pos1 - u_ballPosition;
                 float distToBall = length(toBall);
                 if (distToBall > 0.001 && distToBall < u_ballRadius + 0.5) {
-                    pressureForce += (toBall / distToBall) * 100.0;
+                    pressureForce += (toBall / distToBall) * 165.0;
                 }
 
                 // Combine: pressure/density + viscosity + gravity + agitation
@@ -557,11 +558,12 @@ export class ParticleFluid {
                 acceleration += viscosityForce * u_viscosityMultiplier;
                 acceleration.y += u_gravity;
 
-                // Gentle time-varying horizontal agitation using per-particle phase
-                // offset so forces don't all push the same direction at once.
+                // Time-varying agitation (horizontal + vertical) so the pool feels alive
+                // and reacts more visibly to the simulation.
                 float phase = uv.x * 17.3 + uv.y * 31.7;
-                acceleration.x += sin(u_time * 1.7 + phase) * u_agitation;
-                acceleration.z += cos(u_time * 2.3 + phase * 0.7) * u_agitation;
+                acceleration.x += sin(u_time * 1.85 + phase) * u_agitation;
+                acceleration.z += cos(u_time * 2.45 + phase * 0.7) * u_agitation;
+                acceleration.y += sin(u_time * 1.35 + phase * 1.2) * u_agitation * 0.42;
 
                 // Clamp acceleration magnitude to prevent single-step explosions
                 // when particles are over-compressed by rapid box shrinking.
@@ -727,13 +729,13 @@ export class ParticleFluid {
         // inferred from the acceleration clamp (500) × dt.
         const accelBudget = 500.0 * deltaTime;
         this._estimatedMaxSpeed = Math.max(
-            this._estimatedMaxSpeed * 0.97,            // decay toward calm
-            Math.min(this._estimatedMaxSpeed + accelBudget, 30.0)
+            this._estimatedMaxSpeed * 0.955,
+            Math.min(this._estimatedMaxSpeed + accelBudget * 1.15, 32.0)
         );
-        // Gravity alone keeps it above zero in equilibrium
-        if (this._estimatedMaxSpeed < 2.0) this._estimatedMaxSpeed = 2.0;
+        if (this._estimatedMaxSpeed < 3.2) this._estimatedMaxSpeed = 3.2;
 
         this.commonUniforms.texturePosition.value = this.gpuCompute.getCurrentRenderTarget(this.positionVariable).texture;
         this.commonUniforms.textureVelocity.value = this.gpuCompute.getCurrentRenderTarget(this.velocityVariable).texture;
+        this.commonUniforms.textureDensity.value  = this.gpuCompute.getCurrentRenderTarget(this.densityVariable).texture;
     }
 }

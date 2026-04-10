@@ -45,6 +45,11 @@ uniform sampler2D u_foamTexture;
 // Floor caustics
 uniform float u_causticsStrength;
 
+// Brightness / saturation (reference-style cyan water)
+uniform float u_tintMix;           // how strongly water tint + scatter apply (was hardcoded ~0.35)
+uniform float u_scatterStrength;   // volumetric cyan/white scatter in thick regions
+uniform float u_surfaceExposure;   // gentle lift on lit water before Fresnel
+
 // Debug: 0=final, 1=depth, 2=thickness, 3=normals, 4=foam
 uniform float u_debugMode;
 
@@ -305,12 +310,16 @@ void main() {
     float depthBlend = 1.0 - exp(-thickness * u_absorptionStrength * 2.0);
     vec3 waterTint   = mix(u_shallowColor, u_waterColor, depthBlend);
 
+    // Volumetric scatter: adds bright cyan/white in fluid volume (not just dark floor)
+    vec3 scatter = u_shallowColor * (1.0 - exp(-thickness * 4.5)) * u_scatterStrength;
+
     // ---- Blinn-Phong specular -----------------------------------------------
     vec3 halfVec = normalize(u_lightDirView + viewDir);
     float spec   = pow(max(dot(normal, halfVec), 0.0), 96.0) * u_specularStrength;
 
-    // ---- Final composite: refracted base + tint + Fresnel + specular --------
-    vec3 waterBase = mix(refracted, refracted * waterTint, 0.35);
+    // ---- Final composite: refracted base + tint + scatter + Fresnel + spec --
+    vec3 waterBase = mix(refracted, refracted * waterTint + scatter, u_tintMix);
+    waterBase *= u_surfaceExposure;
     vec3 color     = mix(waterBase, skyCol, clamp(fresnel, 0.0, 1.0)) + vec3(spec);
 
     // ---- Foam overlay: velocity-driven white foam on top of liquid ----------

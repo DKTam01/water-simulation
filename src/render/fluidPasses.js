@@ -47,25 +47,28 @@ export class FluidRenderer {
         this.params = {
             enabled:            true,
             showParticles:      false,
-            particleRadius:     0.55,
+            particleRadius:     0.62,
             blurRadius:         2.5,
             blurDepthFalloff:   12.0,
             blurIterations:     2,       // how many H+V passes to run
             normalScale:        6.0,
-            waterR:             0.02,
-            waterG:             0.15,
-            waterB:             0.55,
-            shallowR:           0.10,
-            shallowG:           0.55,
-            shallowB:           0.65,
-            absorbR:            0.45,
-            absorbG:            0.08,
-            absorbB:            0.02,
-            absorptionStrength: 0.22,
+            waterR:             0.06,
+            waterG:             0.32,
+            waterB:             0.82,
+            shallowR:           0.25,
+            shallowG:           0.88,
+            shallowB:           0.95,
+            absorbR:            0.42,
+            absorbG:            0.10,
+            absorbB:            0.03,
+            absorptionStrength: 0.20,
             ior:                1.33,    // index of refraction for water
             refractionStrength: 8.0,    // scale for physical refraction ray
-            envMapIntensity:    1.0,    // environment reflection brightness
-            specularStrength:   1.6,
+            envMapIntensity:    1.35,   // brighter sky in reflections (reference look)
+            specularStrength:   2.2,
+            tintMix:            0.58,
+            scatterStrength:    0.48,
+            surfaceExposure:    1.14,
             thicknessScale:     0.10,
             detailNormalBlend:  0.15,   // 0 = smooth only, 1 = raw detail only
             foamScale:          1.0,
@@ -73,6 +76,7 @@ export class FluidRenderer {
             foamSpeedMax:       12.0,   // speed above which foam is fully white
             causticsStrength:   0.6,    // fake floor caustics intensity
             fluidScale:         0.5,    // fluid RT resolution multiplier (0.5 = half-res)
+            densityRadiusStrength: 1.0, // 0=off, 1=fully adaptive splats (less visible balls)
             debugMode:          0.0,
         };
 
@@ -158,7 +162,10 @@ export class FluidRenderer {
             fragmentShader: depthFragment,
             uniforms: {
                 texturePosition:  { value: null },
+                textureDensity:   { value: null },
                 u_particleRadius: { value: p.particleRadius },
+                u_targetDensity:  { value: this.fluid.sphUniforms.u_targetDensity.value },
+                u_densityRadiusStrength: { value: 1.0 },
                 u_near:           { value: 0.1 },
                 u_far:            { value: 1000.0 },
                 u_sceneDepth:     { value: null },
@@ -190,8 +197,11 @@ export class FluidRenderer {
             fragmentShader: thicknessFragment,
             uniforms: {
                 texturePosition:  { value: null },
+                textureDensity:   { value: null },
                 u_particleRadius: { value: p.particleRadius },
                 u_thicknessScale: { value: p.thicknessScale },
+                u_targetDensity:  { value: this.fluid.sphUniforms.u_targetDensity.value },
+                u_densityRadiusStrength: { value: 1.0 },
             },
             blending:    THREE.AdditiveBlending,
             transparent: true,
@@ -221,7 +231,10 @@ export class FluidRenderer {
             uniforms: {
                 texturePosition:  { value: null },
                 textureVelocity:  { value: null },
+                textureDensity:   { value: null },
                 u_particleRadius: { value: p.particleRadius },
+                u_targetDensity:  { value: this.fluid.sphUniforms.u_targetDensity.value },
+                u_densityRadiusStrength: { value: 1.0 },
                 u_foamSpeedMin:   { value: p.foamSpeedMin },
                 u_foamSpeedMax:   { value: p.foamSpeedMax },
                 u_foamScale:      { value: p.foamScale },
@@ -299,6 +312,9 @@ export class FluidRenderer {
                 u_envMapIntensity:    { value: p.envMapIntensity },
                 u_foamTexture:        { value: null },
                 u_causticsStrength:   { value: p.causticsStrength },
+                u_tintMix:            { value: p.tintMix },
+                u_scatterStrength:    { value: p.scatterStrength },
+                u_surfaceExposure:    { value: p.surfaceExposure },
                 u_debugMode:          { value: 0.0 },
             },
         });
@@ -364,6 +380,7 @@ export class FluidRenderer {
     render(mainScene, camera, tankMesh) {
         const renderer   = this.renderer;
         const posTexture = this.fluid.commonUniforms.texturePosition.value;
+        const densTexture = this.fluid.commonUniforms.textureDensity.value;
 
         if (!this.params.enabled || !posTexture) {
             this.fluid.mesh.visible = this.params.showParticles || !this.params.enabled;
@@ -377,9 +394,12 @@ export class FluidRenderer {
         const velTexture = this.fluid.commonUniforms.textureVelocity.value;
 
         this._depthMat.uniforms.texturePosition.value = posTexture;
+        this._depthMat.uniforms.textureDensity.value  = densTexture;
         this._thickMat.uniforms.texturePosition.value = posTexture;
+        this._thickMat.uniforms.textureDensity.value  = densTexture;
         this._foamMat.uniforms.texturePosition.value  = posTexture;
         this._foamMat.uniforms.textureVelocity.value  = velTexture;
+        this._foamMat.uniforms.textureDensity.value   = densTexture;
 
         const savedColor = new THREE.Color();
         renderer.getClearColor(savedColor);
@@ -494,6 +514,15 @@ export class FluidRenderer {
     setFoamSpeedMin(v) { this.params.foamSpeedMin = v; this._foamMat.uniforms.u_foamSpeedMin.value = v; }
     setFoamSpeedMax(v) { this.params.foamSpeedMax = v; this._foamMat.uniforms.u_foamSpeedMax.value = v; }
     setCausticsStrength(v) { this.params.causticsStrength = v; this._compMat.uniforms.u_causticsStrength.value = v; }
+    setTintMix(v)          { this.params.tintMix = v;          this._compMat.uniforms.u_tintMix.value          = v; }
+    setScatterStrength(v)  { this.params.scatterStrength = v;  this._compMat.uniforms.u_scatterStrength.value  = v; }
+    setSurfaceExposure(v)  { this.params.surfaceExposure = v; this._compMat.uniforms.u_surfaceExposure.value = v; }
+    setDensityRadiusStrength(v) {
+        this.params.densityRadiusStrength = v;
+        this._depthMat.uniforms.u_densityRadiusStrength.value = v;
+        this._thickMat.uniforms.u_densityRadiusStrength.value = v;
+        this._foamMat.uniforms.u_densityRadiusStrength.value  = v;
+    }
 
     dispose() {
         [

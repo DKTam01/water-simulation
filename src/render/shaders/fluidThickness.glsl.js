@@ -3,15 +3,23 @@
 // to the thickness buffer, so overlapping particles accumulate correctly.
 export const thicknessVertex = /* glsl */`
 uniform sampler2D texturePosition;
+uniform sampler2D textureDensity;
 attribute vec2 particleUV;
 uniform float u_particleRadius;
+uniform float u_targetDensity;
+uniform float u_densityRadiusStrength;
 
 varying vec2 vQuadPos;
 
 void main() {
     vec3 worldCenter = texture2D(texturePosition, particleUV).xyz;
+    float dens = max(texture2D(textureDensity, particleUV).r, 0.001);
+    float ratio = u_targetDensity / dens;
+    float radiusScale = clamp(pow(ratio, 0.5), 0.8, 2.5);
+    radiusScale = mix(1.0, radiusScale, clamp(u_densityRadiusStrength, 0.0, 1.0));
+    float r = u_particleRadius * radiusScale;
     vec4 viewCenter = viewMatrix * vec4(worldCenter, 1.0);
-    vec4 viewPos = viewCenter + vec4(position.xy * u_particleRadius, 0.0, 0.0);
+    vec4 viewPos = viewCenter + vec4(position.xy * r, 0.0, 0.0);
     vQuadPos = position.xy;
     gl_Position = projectionMatrix * viewPos;
 }

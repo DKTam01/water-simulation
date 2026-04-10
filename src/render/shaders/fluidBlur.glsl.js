@@ -21,25 +21,43 @@ varying vec2 vUv;
 void main() {
     float centerDepth = texture2D(u_depthTexture, vUv).r;
 
-    // Empty pixel — pass through zero so composite can detect fluid boundary.
+    // Empty pixel — check if any immediate neighbor has depth (gap-fill seed).
+    // If so, adopt that neighbor's depth as our center so the blur can grow
+    // the fluid surface into single-pixel holes between particles.
     if (centerDepth < 0.001) {
-        gl_FragColor = vec4(0.0);
-        return;
+        vec2 texelSize = u_direction / u_resolution;
+        float n1 = texture2D(u_depthTexture, vUv + texelSize * u_blurRadius).r;
+        float n2 = texture2D(u_depthTexture, vUv - texelSize * u_blurRadius).r;
+        if (n1 > 0.001 && n2 > 0.001) {
+            // Both neighbors have depth — we're in a gap. Seed with average.
+            centerDepth = (n1 + n2) * 0.5;
+        } else {
+            gl_FragColor = vec4(0.0);
+            return;
+        }
     }
 
     vec2 texelSize = u_direction / u_resolution;
     float totalWeight = 0.0;
     float result = 0.0;
 
-    // 15-tap Gaussian bilateral: i in [-7, 7]
     for (int i = -7; i <= 7; i++) {
         vec2 sampleUV = vUv + texelSize * float(i) * u_blurRadius;
         float sampleDepth = texture2D(u_depthTexture, sampleUV).r;
-        if (sampleDepth < 0.001) continue; // skip empty neighbours
 
-        float spatialW = exp(-float(i * i) * 0.09); // Gaussian spatial
+        float spatialW = exp(-float(i * i) * 0.09);
+
+        // Gap-fill: empty neighbors near a valid center contribute the center
+        // depth at a heavily reduced weight, letting the blur bridge small gaps.
+        if (sampleDepth < 0.001) {
+            float gapW = spatialW * 0.15;
+            result += centerDepth * gapW;
+            totalWeight += gapW;
+            continue;
+        }
+
         float depthDiff = sampleDepth - centerDepth;
-        float rangeW = exp(-depthDiff * depthDiff * u_blurDepthFalloff); // bilateral range
+        float rangeW = exp(-depthDiff * depthDiff * u_blurDepthFalloff);
         float w = spatialW * rangeW;
 
         result += sampleDepth * w;
