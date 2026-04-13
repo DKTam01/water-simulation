@@ -48,8 +48,8 @@ export class FluidRenderer {
             enabled:            true,
             showParticles:      false,
             particleRadius:     0.62,
-            blurRadius:         2.5,
-            blurDepthFalloff:   12.0,
+            blurRadius:         20.5,
+            blurDepthFalloff:   1.0,
             blurIterations:     2,       // how many H+V passes to run
             normalScale:        6.0,
             waterR:             0.06,
@@ -62,21 +62,21 @@ export class FluidRenderer {
             absorbG:            1.5,
             absorbB:            0.4,
             absorptionStrength: 0.20,
-            ior:                1.33,    // index of refraction for water
+            ior:                2.5,    // index of refraction for water
             refractionStrength: 8.0,    // scale for physical refraction ray
-            envMapIntensity:    1.35,   // brighter sky in reflections (reference look)
-            specularStrength:   2.2,
-            tintMix:            0.58,
-            scatterStrength:    0.48,
+            envMapIntensity:    2.00,   // brighter sky in reflections (reference look)
+            specularStrength:   0.01,
+            tintMix:            0.86,
+            scatterStrength:    0.78,
             surfaceExposure:    1.14,
-            thicknessScale:     0.10,
+            thicknessScale:     0.001,
             detailNormalBlend:  0.15,   // 0 = smooth only, 1 = raw detail only
-            foamScale:          1.0,
-            foamSpeedMin:       3.0,    // speed below which no foam appears
-            foamSpeedMax:       12.0,   // speed above which foam is fully white
+            foamScale:          0.3,
+            foamSpeedMin:       7.5,    // speed below which no foam appears
+            foamSpeedMax:       20.0,   // speed above which foam is fully white
             causticsStrength:   0.6,    // fake floor caustics intensity
             fluidScale:         0.5,    // fluid RT resolution multiplier (0.5 = half-res)
-            densityRadiusStrength: 1.0, // 0=off, 1=fully adaptive splats (less visible balls)
+            densityRadiusStrength: 0.1, // 0=off, 1=fully adaptive splats (less visible balls)
             debugMode:          0.0,
         };
 

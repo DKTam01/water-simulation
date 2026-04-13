@@ -6,7 +6,7 @@ export class ParticleFluid {
         this.renderer = renderer;
         this.uiSettings = uiSettings;
 
-        this.WIDTH = uiSettings.particleResolution || 192; 
+        this.WIDTH = uiSettings.particleResolution || 128; 
         this.particleCount = this.WIDTH * this.WIDTH; 
 
         // --- SPH Parameters (recalibrated for proper kernel math) ---
@@ -27,7 +27,7 @@ export class ParticleFluid {
             u_gravity: { value: -18.0 },
             u_collisionDamping: { value: 0.44 },
             
-            u_agitation: { value: 1.15 },
+            u_agitation: { value: 0.15 },
 
             u_tankMatrixWorld: { value: new THREE.Matrix4() },
             u_tankMatrixWorldInverse: { value: new THREE.Matrix4() }
