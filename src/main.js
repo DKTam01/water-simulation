@@ -126,7 +126,7 @@ const uiSettings = {
     loopRiver: true,
     flowAccel: 1.6,      // enough momentum to wrap through periodic boundary without pooling
 
-    particleResolution: 128,
+    particleResolution: 64,
 };
 
 const savedRes = localStorage.getItem('particleResolution');
