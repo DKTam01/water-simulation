@@ -51,9 +51,6 @@ uniform float u_tintMix;           // how strongly water tint + scatter apply (w
 uniform float u_scatterStrength;   // volumetric cyan/white scatter in thick regions
 uniform float u_surfaceExposure;   // gentle lift on lit water before Fresnel
 
-// Underwater effect: >0 when camera is inside the fluid volume
-uniform float u_underwaterFactor;
-
 // Debug: 0=final, 1=depth, 2=thickness, 3=normals, 4=foam
 uniform float u_debugMode;
 
@@ -246,16 +243,9 @@ void main() {
         return;
     }
 
-    // ---- No fluid at this pixel — show background (with underwater tint) ----
+    // ---- No fluid at this pixel — show background --------------------------------
     if (fluidDepth < 0.001) {
-        if (u_underwaterFactor > 0.001) {
-            // Deep blue-green caustic tint when camera is inside the tank volume
-            vec3 underTint = vec3(0.03, 0.20, 0.38);
-            float fogStrength = u_underwaterFactor * 0.48;
-            gl_FragColor = vec4(mix(sceneColor.rgb, underTint, fogStrength), 1.0);
-        } else {
-            gl_FragColor = sceneColor;
-        }
+        gl_FragColor = sceneColor;
         return;
     }
 

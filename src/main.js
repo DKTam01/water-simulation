@@ -1,28 +1,40 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-import { setupEnvironment, CLIFF_Z_RATIO, SPAWN_CLIFF_OFFSET, sampleRiverBedY } from './environment.js';
+import { setupEnvironment, sampleBaseplateY } from './environment.js';
 import { setupGUI } from './guicontrols.js';
 import { ParticleFluid } from './particles.js';
 import { FluidRenderer } from './render/fluidPasses.js';
 
 const container = document.getElementById('canvas-wrapper');
 
+/** `#canvas-wrapper` lives under a hidden window until login; size is often 0 at module load. */
+function getContainerDrawingSize() {
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    return {
+        w: Math.max(1, w),
+        h: Math.max(1, h),
+    };
+}
+
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb);
-scene.fog = new THREE.Fog(0x9ec5e8, 90, 320);
 
-const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
-camera.position.set(0, 58, 115);
+const _initialSize = getContainerDrawingSize();
+const camera = new THREE.PerspectiveCamera(75, _initialSize.w / _initialSize.h, 0.1, 1000);
+camera.position.set(0, 72, 155);
 
 const renderer = new THREE.WebGLRenderer({
     antialias: true,
     powerPreference: 'high-performance',
 });
-renderer.setSize(container.clientWidth, container.clientHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(_initialSize.w, _initialSize.h);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2.5));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.0;
+renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 container.appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -34,15 +46,27 @@ scene.add(hemiLight);
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.45);
 scene.add(ambientLight);
 
-const dirLight = new THREE.DirectionalLight(0xfff4e0, 1.35);
-dirLight.position.set(10, 22, 8);
+const dirLight = new THREE.DirectionalLight(0xfff4e0, 1.45);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(2048, 2048);
+dirLight.shadow.camera.near = 1;
+dirLight.shadow.camera.far = 650;
+const sh = 240;
+dirLight.shadow.camera.left = -sh;
+dirLight.shadow.camera.right = sh;
+dirLight.shadow.camera.top = sh;
+dirLight.shadow.camera.bottom = -sh;
+dirLight.shadow.bias = -0.00025;
+dirLight.position.set(95, 115, 72);
+dirLight.target.position.set(0, 0, 0);
 scene.add(dirLight);
+scene.add(dirLight.target);
 
 const skyDomeMat = new THREE.ShaderMaterial({
     side: THREE.BackSide,
     depthWrite: false,
     uniforms: {
-        u_sunDir: { value: new THREE.Vector3(8, 20, 10).normalize() },
+        u_sunDir: { value: dirLight.position.clone().normalize() },
     },
     vertexShader: /* glsl */ `
         varying vec3 vWorldPos;
@@ -115,16 +139,22 @@ const resumeAudio = () => {
 const uiSettings = {
     showWireframe: false,
     timeOfDay: 'Day',
-    planeWidth: 200,
-    planeLength: 280,
-    riverDepth: 3.5,
-    riverWidth: 30,
-    cliffHeight: 14,     // tall waterfall
-    flowSlope: 0.008,    // nearly flat downstream — gentle creek pool
+    baseplateSize: 260,
+    baseplateSeg: 240,
+    baseplateYOffset: 0,
+    baseplateBumpAmp: 0.15,
+    baseplateBumpFreq: 0.055,
+    baseplateTiltX: 0,
+    baseplateTiltZ: 0.001,
+
+    fluidRegionWidth: 120,
+    fluidRegionLength: 120,
+    fluidHeadroom: 14,
+    fluidContainerLift: 1.25,
 
     waterColor: '#0099cc',
-    loopRiver: true,
-    flowAccel: 1.6,      // enough momentum to wrap through periodic boundary without pooling
+    loopRiver: false,
+    flowAccel: 0.35,
 
     particleResolution: 64,
 };
@@ -138,41 +168,26 @@ const ballMesh = new THREE.Mesh(
     new THREE.SphereGeometry(1.5, 32, 32),
     new THREE.MeshStandardMaterial({ color: 0xff3333, roughness: 0.4 })
 );
-ballMesh.position.set(0, 12, 0);
+ballMesh.position.set(0, 16, 0);
+ballMesh.castShadow = true;
+ballMesh.receiveShadow = true;
 scene.add(ballMesh);
 
-// Accent rocks — low-poly rounded boulders scattered through the creek channel.
-// Each entry drives both the visible mesh and the SPH collision sphere.
-const ROCK_DEFS = [
-    { pos: [-5.5,  0,  15], r: 2.2 },
-    { pos: [  4,   0,  28], r: 2.8 },
-    { pos: [ -2,   0,  42], r: 1.8 },
-    { pos: [  7,   0,  10], r: 1.5 },
-    { pos: [ -8,   0,  55], r: 3.0 },
-    { pos: [  3,   0,  68], r: 2.0 },
-];
-
-const rockMat = new THREE.MeshStandardMaterial({
-    color: 0x7a7060,
-    roughness: 0.92,
-    metalness: 0.0,
-});
-
-const rockMeshes = ROCK_DEFS.map(({ pos, r }) => {
-    const m = new THREE.Mesh(
-        new THREE.DodecahedronGeometry(r, 1),
-        rockMat
-    );
-    m.position.set(...pos);
-    m.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-    scene.add(m);
-    return { mesh: m, radius: r };
-});
-
+const tankGeo = new THREE.BoxGeometry(1, 1, 1);
 const tankMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(1, 1, 1),
-    new THREE.MeshBasicMaterial({ color: 0x444444, wireframe: true })
+    tankGeo,
+    new THREE.MeshBasicMaterial({
+        color: 0xff2d6b,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.88,
+    })
 );
+const tankOutline = new THREE.LineSegments(
+    new THREE.EdgesGeometry(tankGeo),
+    new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 })
+);
+tankMesh.add(tankOutline);
 scene.add(tankMesh);
 
 const fluid = new ParticleFluid(renderer, scene, uiSettings);
@@ -183,7 +198,7 @@ let envCubeTexture = null;
     const envSky = new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), skyDomeMat.clone());
     envSky.material.side = THREE.BackSide;
     envScene.add(envSky);
-    const cubeRT = new THREE.WebGLCubeRenderTarget(256);
+    const cubeRT = new THREE.WebGLCubeRenderTarget(512);
     const cubeCam = new THREE.CubeCamera(0.1, 100, cubeRT);
     cubeCam.update(renderer, envScene);
     envCubeTexture = cubeRT.texture;
@@ -191,6 +206,40 @@ let envCubeTexture = null;
 
 const fluidRenderer = new FluidRenderer(renderer, fluid);
 if (envCubeTexture) fluidRenderer.setEnvMap(envCubeTexture);
+
+const sunDirScratch = new THREE.Vector3();
+function applyTimeOfDay() {
+    const t = uiSettings.timeOfDay;
+    if (t === 'Morning') {
+        hemiLight.intensity = 0.72;
+        ambientLight.intensity = 0.38;
+        dirLight.intensity = 1.05;
+        sunDirScratch.set(40, 26, 72).normalize();
+    } else if (t === 'Evening') {
+        hemiLight.intensity = 0.58;
+        ambientLight.intensity = 0.34;
+        dirLight.intensity = 1.0;
+        sunDirScratch.set(-55, 14, 48).normalize();
+    } else if (t === 'Night') {
+        hemiLight.intensity = 0.32;
+        ambientLight.intensity = 0.2;
+        dirLight.intensity = 0.32;
+        sunDirScratch.set(14, 5, -6).normalize();
+    } else {
+        hemiLight.intensity = 0.88;
+        ambientLight.intensity = 0.46;
+        dirLight.intensity = 1.45;
+        sunDirScratch.set(95, 115, 72).normalize();
+    }
+    dirLight.position.copy(sunDirScratch).multiplyScalar(200);
+    skyDomeMat.uniforms.u_sunDir.value.copy(sunDirScratch);
+    if (typeof fluidRenderer.setWorldLightDirection === 'function') {
+        fluidRenderer.setWorldLightDirection(sunDirScratch);
+    } else if (fluidRenderer._worldLightDir) {
+        fluidRenderer._worldLightDir.copy(sunDirScratch).normalize();
+    }
+}
+applyTimeOfDay();
 
 function applyWaterColorFromUI() {
     const c = new THREE.Color(uiSettings.waterColor);
@@ -203,22 +252,14 @@ function syncPeriodicFromUI() {
 }
 
 function syncTankAndFluidUniforms() {
-    environmentTools.syncFluidTankToRiver(tankMesh, fluid.sphUniforms, fluid);
+    environmentTools.syncFluidTank(tankMesh, fluid.sphUniforms, fluid);
     syncPeriodicFromUI();
-    fluid.sphUniforms.u_riverDepth.value  = uiSettings.riverDepth;
-    fluid.sphUniforms.u_riverWidth.value  = uiSettings.riverWidth;
-    fluid.sphUniforms.u_cliffHeight.value = uiSettings.cliffHeight;
-    fluid.sphUniforms.u_flowSlope.value   = uiSettings.flowSlope;
-    const cliffZ = -uiSettings.planeLength * CLIFF_Z_RATIO;
-    fluid.sphUniforms.u_riverCliffZ.value = cliffZ;
-
-    // Compute the wrap-destination Z in local OBB space so the position shader
-    // can land teleported particles in the calm flat section instead of the cliff top.
-    const wrapWorldZ  = Math.min(cliffZ + SPAWN_CLIFF_OFFSET, tankMesh.scale.z * 0.5 - 6.0);
-    const tankHalfLen = tankMesh.scale.z * 0.5;
-    fluid.sphUniforms.u_wrapDestLocalZ.value = tankHalfLen > 0
-        ? (wrapWorldZ - tankMesh.position.z) / tankMesh.scale.z
-        : 0.0;
+    fluid.sphUniforms.u_baseYOffset.value = uiSettings.baseplateYOffset;
+    fluid.sphUniforms.u_baseBumpAmp.value = uiSettings.baseplateBumpAmp;
+    fluid.sphUniforms.u_baseBumpFreq.value = uiSettings.baseplateBumpFreq;
+    fluid.sphUniforms.u_baseTiltX.value = uiSettings.baseplateTiltX;
+    fluid.sphUniforms.u_baseTiltZ.value = uiSettings.baseplateTiltZ;
+    fluid.sphUniforms.u_wrapDestLocalZ.value = 0;
 }
 
 syncTankAndFluidUniforms();
@@ -229,22 +270,24 @@ const origGenerateTerrain = environmentTools.generateTerrain.bind(environmentToo
 environmentTools.generateTerrain = () => {
     origGenerateTerrain();
     syncTankAndFluidUniforms();
-    rockMeshes.forEach(({ mesh, radius }) => {
-        const { x, z } = mesh.position;
-        mesh.position.y = sampleRiverBedY(x, z, uiSettings) + radius * 0.45;
-    });
 };
 
-const resizeFluid = () => {
+function resizeFluid() {
+    const { w, h } = getContainerDrawingSize();
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
     const size = new THREE.Vector2();
     renderer.getDrawingBufferSize(size);
     fluidRenderer.onResize(size.x, size.y);
-};
+}
+
+resizeFluid();
 
 // Exposed for the inline login fallback (runs before this assignment on first paint, then undefined until module loads).
 window.__resizeFluid = resizeFluid;
 
-// Always resize fluid RT when the window resizes — registered here so it runs even if setupGUI throws later.
+// Match drawing buffer to the canvas wrapper whenever the window or layout changes.
 window.addEventListener('resize', resizeFluid);
 
 try {
@@ -255,13 +298,15 @@ try {
         fluidRenderer,
         ballMesh,
         applyWaterColorFromUI,
+        applyTimeOfDay,
+        syncFluidVolume: syncTankAndFluidUniforms,
         resizeFluid,
         pauseSim,
         muteAudio,
         resumeAudio,
     });
 } catch (err) {
-    console.error('[Whitewater] setupGUI failed:', err);
+    console.error('[WaterSim] setupGUI failed:', err);
 }
 
 // Adaptive FPS quality: track real wall-clock time over a rolling window
@@ -288,17 +333,6 @@ function checkAdaptiveFPS() {
     _fpsFrames++;
 }
 
-// Sink rocks so their bases sit on the riverbed.
-rockMeshes.forEach(({ mesh, radius }) => {
-    const { x, z } = mesh.position;
-    mesh.position.y = sampleRiverBedY(x, z, uiSettings) + radius * 0.45;
-});
-
-// Live rock list for SPH (positions update if terrain re-generates).
-function buildRockList() {
-    return rockMeshes.map(({ mesh, radius }) => ({ position: mesh.position, radius }));
-}
-
 function animate() {
     requestAnimationFrame(animate);
     if (simPaused) return;
@@ -309,7 +343,6 @@ function animate() {
     tankMesh.updateMatrixWorld();
     ballMesh.updateMatrixWorld();
 
-    fluid.setRocks(buildRockList());
     fluid.update(ballMesh.position, clock.getElapsedTime(), delta, tankMesh);
     fluidRenderer.render(scene, camera, tankMesh);
 
@@ -318,11 +351,12 @@ function animate() {
 animate();
 
 const resizeObserver = new ResizeObserver(() => {
-    if (container.clientWidth > 0 && container.clientHeight > 0) {
-        camera.aspect = container.clientWidth / container.clientHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(container.clientWidth, container.clientHeight);
-        resizeFluid();
-    }
+    resizeFluid();
 });
 resizeObserver.observe(container);
+
+// Login reveals the window after layout — catch the first non-zero size (ResizeObserver can be one frame late).
+requestAnimationFrame(() => {
+    resizeFluid();
+    requestAnimationFrame(() => resizeFluid());
+});

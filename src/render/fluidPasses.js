@@ -75,10 +75,13 @@ export class FluidRenderer {
             foamSpeedMin:       7.5,    // speed below which no foam appears
             foamSpeedMax:       20.0,   // speed above which foam is fully white
             causticsStrength:   0.6,    // fake floor caustics intensity
-            fluidScale:         0.5,    // fluid RT resolution multiplier (0.5 = half-res)
+            fluidScale:         0.65,   // fluid RT resolution multiplier (higher = sharper fluid)
             densityRadiusStrength: 0.1, // 0=off, 1=fully adaptive splats (less visible balls)
             debugMode:          0.0,
         };
+
+        /** Matches main scene directional light (world space, normalized). */
+        this._worldLightDir = new THREE.Vector3(10, 22, 8).normalize();
 
         this._initRTs();
         this._initBillboards();
@@ -322,7 +325,6 @@ export class FluidRenderer {
                 u_surfaceExposure:    { value: p.surfaceExposure },
                 u_debugMode:          { value: 0.0 },
                 u_floorY:             { value: 0.0 },  // tank floor world Y (for refraction clamping)
-                u_underwaterFactor:   { value: 0.0 },  // >0 when camera is inside the fluid volume
             },
         });
         this._compPass = new FullscreenPass(this._compMat);
@@ -344,9 +346,9 @@ export class FluidRenderer {
         this._compMat.uniforms.u_cameraProjection.value.copy(camera.projectionMatrix);
 
         // World-space light → view space for Blinn-Phong.
-        const worldLight = new THREE.Vector3(0.35, 0.80, 0.50).normalize();
+        const worldLight = this._worldLightDir.clone();
         const mat3view   = new THREE.Matrix3().setFromMatrix4(camera.matrixWorldInverse);
-        const viewLight  = worldLight.clone().applyMatrix3(mat3view).normalize();
+        const viewLight  = worldLight.applyMatrix3(mat3view).normalize();
         this._compMat.uniforms.u_lightDirView.value.copy(viewLight);
 
         // Tank bounding box — tank is a unit cube scaled and offset in main.js.
@@ -359,12 +361,6 @@ export class FluidRenderer {
             );
             // Floor Y is the bottom of the tank bounding box (center.y - halfSize.y)
             this._compMat.uniforms.u_floorY.value = tankMesh.position.y - tankMesh.scale.y * 0.5;
-
-            // Underwater factor: smoothstep from 0 at tank top to 1 at 10 units below
-            const tankTopY = tankMesh.position.y + tankMesh.scale.y * 0.5;
-            const camY = camera.position.y;
-            const t = Math.max(0, Math.min(1, (tankTopY - camY) / 10.0));
-            this._compMat.uniforms.u_underwaterFactor.value = t * t * (3 - 2 * t);
         }
     }
 
@@ -534,6 +530,11 @@ export class FluidRenderer {
     setFluidScale(v) {
         this.params.fluidScale = v;
         this.onResize(this.width, this.height);
+    }
+
+    /** Keep fluid shading aligned with the scene sun (DirectionalLight.position). */
+    setWorldLightDirection(v) {
+        this._worldLightDir.copy(v).normalize();
     }
     setFoamScale(v)    { this.params.foamScale    = v; this._foamMat.uniforms.u_foamScale.value    = v; }
     setFoamSpeedMin(v) { this.params.foamSpeedMin = v; this._foamMat.uniforms.u_foamSpeedMin.value = v; }

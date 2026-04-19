@@ -143,17 +143,23 @@ export function setupGUI(uiSettings, callbacks) {
 
     const envContainer = document.getElementById('gui-env-container');
     const guiEnv = new GUI({ container: envContainer });
-    guiEnv.add(uiSettings, 'showWireframe').name('Terrain Wireframe').onChange(callbacks.setWireframe);
-    guiEnv.add(uiSettings, 'timeOfDay', ['Morning', 'Day', 'Evening', 'Night']).name('Time Settings');
+    guiEnv.add(uiSettings, 'showWireframe').name('Baseplate wireframe').onChange(callbacks.setWireframe);
+    guiEnv
+        .add(uiSettings, 'timeOfDay', ['Morning', 'Day', 'Evening', 'Night'])
+        .name('Time of day')
+        .onChange(() => {
+            if (typeof callbacks.applyTimeOfDay === 'function') callbacks.applyTimeOfDay();
+        });
 
     const terrainContainer = document.getElementById('gui-terrain-container');
     const guiTerrain = new GUI({ container: terrainContainer });
-    guiTerrain.add(uiSettings, 'planeWidth', 40, 320).name('Map Width').onChange(callbacks.generateTerrain);
-    guiTerrain.add(uiSettings, 'planeLength', 40, 360).name('Map Length').onChange(callbacks.generateTerrain);
-    guiTerrain.add(uiSettings, 'riverDepth', 0, 10).name('River Depth').onChange(callbacks.generateTerrain);
-    guiTerrain.add(uiSettings, 'riverWidth', 1, 90).name('River Width').onChange(callbacks.generateTerrain);
-    guiTerrain.add(uiSettings, 'cliffHeight', 0, 10).name('Waterfall Height').onChange(callbacks.generateTerrain);
-    guiTerrain.add(uiSettings, 'flowSlope', 0, 0.5).name('Global Tilt').onChange(callbacks.generateTerrain);
+    guiTerrain.add(uiSettings, 'baseplateSize', 80, 400, 1).name('Baseplate size').onChange(callbacks.generateTerrain);
+    guiTerrain.add(uiSettings, 'baseplateSeg', 32, 400, 1).name('Baseplate subdivisions').onChange(callbacks.generateTerrain);
+    guiTerrain.add(uiSettings, 'baseplateYOffset', -8, 8, 0.05).name('Plate height offset').onChange(callbacks.generateTerrain);
+    guiTerrain.add(uiSettings, 'baseplateBumpAmp', 0, 2.5, 0.01).name('Surface ripple amp').onChange(callbacks.generateTerrain);
+    guiTerrain.add(uiSettings, 'baseplateBumpFreq', 0.01, 0.25, 0.005).name('Ripple frequency').onChange(callbacks.generateTerrain);
+    guiTerrain.add(uiSettings, 'baseplateTiltX', -0.02, 0.02, 0.0005).name('Tilt along X').onChange(callbacks.generateTerrain);
+    guiTerrain.add(uiSettings, 'baseplateTiltZ', -0.02, 0.02, 0.0005).name('Tilt along Z').onChange(callbacks.generateTerrain);
 
     const { fluid, fluidRenderer, ballMesh, applyWaterColorFromUI, resizeFluid } = callbacks;
 
@@ -162,47 +168,135 @@ export function setupGUI(uiSettings, callbacks) {
 
     const waterContainer = document.getElementById('gui-water-container');
     const guiWater = new GUI({ container: waterContainer });
-    guiWater.add(rp, 'enabled').name('Screen-space fluid');
-    guiWater.add(rp, 'showParticles').name('Show particles (debug)');
-    guiWater.addColor(uiSettings, 'waterColor').name('Water tint').onChange(() => applyWaterColorFromUI());
-    guiWater.add(rp, 'ior', 1.0, 2.5, 0.01).name('IOR').onChange((v) => fluidRenderer.setIOR(v));
-    guiWater.add(rp, 'tintMix', 0.0, 1.0, 0.01).name('Tint mix').onChange((v) => fluidRenderer.setTintMix(v));
-    guiWater.add(rp, 'scatterStrength', 0.0, 1.2, 0.02).name('Volume brightness').onChange((v) =>
-        fluidRenderer.setScatterStrength(v)
-    );
-    guiWater.add(rp, 'particleRadius', 0.2, 1.5, 0.01).name('Blob radius').onChange((v) =>
-        fluidRenderer.setParticleRadius(v)
-    );
-    guiWater.add(rp, 'blurRadius', 0.5, 8.0, 0.1).name('Blur radius').onChange((v) => fluidRenderer.setBlurRadius(v));
-    guiWater.add(rp, 'blurDepthFalloff', 1.0, 50.0, 0.5).name('Blur sharpness').onChange((v) =>
-        fluidRenderer.setBlurFalloff(v)
-    );
-    guiWater.add(rp, 'normalScale', 0.5, 30.0, 0.5).name('Normal scale').onChange((v) =>
-        fluidRenderer.setNormalScale(v)
-    );
-    guiWater.add(rp, 'refractionStrength', 0.0, 30.0, 0.5).name('Refraction scale').onChange((v) =>
-        fluidRenderer.setRefractionStrength(v)
-    );
-    guiWater.add(rp, 'envMapIntensity', 0.0, 3.0, 0.05).name('Env reflection').onChange((v) =>
-        fluidRenderer.setEnvMapIntensity(v)
-    );
-    guiWater.add(rp, 'foamScale', 0.0, 3.0, 0.05).name('Foam intensity').onChange((v) =>
-        fluidRenderer.setFoamScale(v)
-    );
-    guiWater.add(rp, 'fluidScale', 0.25, 1.0, 0.05).name('Fluid RT scale').onChange((v) =>
-        fluidRenderer.setFluidScale(v)
-    );
+    const renderFolder = guiWater.addFolder('Fluid rendering');
+    renderFolder.add(rp, 'enabled').name('Screen-space fluid');
+    renderFolder.add(rp, 'showParticles').name('Show particles (debug)');
+    renderFolder.addColor(uiSettings, 'waterColor').name('Water tint').onChange(() => applyWaterColorFromUI());
+    renderFolder
+        .add(rp, 'particleRadius', 0.2, 1.5, 0.01)
+        .name('Blob radius')
+        .onChange((v) => fluidRenderer.setParticleRadius(v));
+    renderFolder
+        .add(rp, 'blurRadius', 0.5, 8.0, 0.1)
+        .name('Blur radius')
+        .onChange((v) => fluidRenderer.setBlurRadius(v));
+    renderFolder
+        .add(rp, 'blurDepthFalloff', 1.0, 50.0, 0.5)
+        .name('Blur edge sharpness')
+        .onChange((v) => fluidRenderer.setBlurFalloff(v));
+    renderFolder
+        .add(rp, 'blurIterations', 1, 4, 1)
+        .name('Blur iterations')
+        .onChange((v) => fluidRenderer.setBlurIterations(v));
+    renderFolder
+        .add(rp, 'normalScale', 0.5, 30.0, 0.5)
+        .name('Normal scale')
+        .onChange((v) => fluidRenderer.setNormalScale(v));
+    renderFolder
+        .add(rp, 'absorptionStrength', 0.0, 2.0, 0.01)
+        .name('Absorption')
+        .onChange((v) => fluidRenderer.setAbsorptionStrength(v));
+    renderFolder
+        .add(rp, 'ior', 1.0, 2.5, 0.01)
+        .name('IOR (refraction index)')
+        .onChange((v) => fluidRenderer.setIOR(v));
+    renderFolder
+        .add(rp, 'refractionStrength', 0.0, 30.0, 0.5)
+        .name('Refraction scale')
+        .onChange((v) => fluidRenderer.setRefractionStrength(v));
+    renderFolder
+        .add(rp, 'specularStrength', 0.0, 5.0, 0.1)
+        .name('Specular')
+        .onChange((v) => fluidRenderer.setSpecularStrength(v));
+    renderFolder
+        .add(rp, 'thicknessScale', 0.01, 0.5, 0.01)
+        .name('Thickness scale')
+        .onChange((v) => fluidRenderer.setThicknessScale(v));
+    renderFolder
+        .add(rp, 'detailNormalBlend', 0.0, 1.0, 0.01)
+        .name('Detail normals')
+        .onChange((v) => fluidRenderer.setDetailNormalBlend(v));
+    renderFolder
+        .add(rp, 'envMapIntensity', 0.0, 3.0, 0.05)
+        .name('Env reflection')
+        .onChange((v) => fluidRenderer.setEnvMapIntensity(v));
+    renderFolder
+        .add(rp, 'tintMix', 0.0, 1.0, 0.01)
+        .name('Water tint mix')
+        .onChange((v) => fluidRenderer.setTintMix(v));
+    renderFolder
+        .add(rp, 'scatterStrength', 0.0, 1.2, 0.02)
+        .name('Volume brightness')
+        .onChange((v) => fluidRenderer.setScatterStrength(v));
+    renderFolder
+        .add(rp, 'surfaceExposure', 0.8, 1.5, 0.01)
+        .name('Surface exposure')
+        .onChange((v) => fluidRenderer.setSurfaceExposure(v));
+    renderFolder
+        .add(rp, 'causticsStrength', 0.0, 2.0, 0.05)
+        .name('Floor caustics')
+        .onChange((v) => fluidRenderer.setCausticsStrength(v));
+    renderFolder
+        .add(rp, 'foamScale', 0.0, 3.0, 0.05)
+        .name('Foam intensity')
+        .onChange((v) => fluidRenderer.setFoamScale(v));
+    renderFolder
+        .add(rp, 'foamSpeedMin', 0.0, 10.0, 0.5)
+        .name('Foam speed min')
+        .onChange((v) => fluidRenderer.setFoamSpeedMin(v));
+    renderFolder
+        .add(rp, 'foamSpeedMax', 1.0, 30.0, 0.5)
+        .name('Foam speed max')
+        .onChange((v) => fluidRenderer.setFoamSpeedMax(v));
+    renderFolder
+        .add(rp, 'densityRadiusStrength', 0.0, 1.0, 0.01)
+        .name('Adaptive splats')
+        .onChange((v) => fluidRenderer.setDensityRadiusStrength(v));
+    renderFolder
+        .add(rp, 'fluidScale', 0.25, 1.0, 0.05)
+        .name('Fluid resolution')
+        .onChange((v) => {
+            fluidRenderer.setFluidScale(v);
+            if (typeof callbacks.resizeFluid === 'function') callbacks.resizeFluid();
+        });
+    renderFolder
+        .add(rp, 'debugMode', { Final: 0, Depth: 1, Thickness: 2, Normals: 3, Foam: 4 })
+        .name('Debug view')
+        .onChange((v) => fluidRenderer.setDebugMode(Number(v)));
+    renderFolder.open();
 
     const particleContainer = document.getElementById('gui-particle-container');
     const guiParticle = new GUI({ container: particleContainer });
 
+    const fluidVol = guiParticle.addFolder('Fluid container (SPH volume)');
+    const onFluidVolumeChange = () => {
+        if (typeof callbacks.syncFluidVolume === 'function') callbacks.syncFluidVolume();
+    };
+    fluidVol
+        .add(uiSettings, 'fluidRegionWidth', 20, 380, 1)
+        .name('Width (world X)')
+        .onChange(onFluidVolumeChange);
+    fluidVol
+        .add(uiSettings, 'fluidRegionLength', 20, 380, 1)
+        .name('Length (world Z)')
+        .onChange(onFluidVolumeChange);
+    fluidVol
+        .add(uiSettings, 'fluidHeadroom', 4, 40, 0.5)
+        .name('Ceiling headroom')
+        .onChange(onFluidVolumeChange);
+    fluidVol
+        .add(uiSettings, 'fluidContainerLift', 0, 12, 0.05)
+        .name('Lift above terrain')
+        .onChange(onFluidVolumeChange);
+    fluidVol.open();
+
     guiParticle
         .add(uiSettings, 'loopRiver')
-        .name('Loop river (periodic Z)')
+        .name('Periodic wrap (Z)')
         .onChange((v) => {
             uniforms.u_periodicFlow.value = v ? 1.0 : 0.0;
         });
-    guiParticle.add(uiSettings, 'flowAccel', 0, 14, 0.25).name('Downstream push').onChange((v) => {
+    guiParticle.add(uiSettings, 'flowAccel', 0, 14, 0.25).name('Flow along +Z').onChange((v) => {
         uniforms.u_flowAccel.value = v;
     });
 

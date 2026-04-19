@@ -1,7 +1,7 @@
-# Whitewater Rapids Simulation Suite
+# Water Simulation Suite
 
-A real-time 3D whitewater river simulation built for **CS 335** (Computer Graphics).  
-The simulation uses GPU-based SPH particle hydrodynamics combined with a multi-pass screen-space fluid renderer, wrapped in a Windows Vista–style desktop UI.
+A real-time 3D water simulation built for **CS 335** (Computer Graphics).  
+The demo uses GPU-based SPH particle hydrodynamics and a multi-pass screen-space fluid renderer, wrapped in a Windows Vista–style desktop UI. The scene is a large high-resolution four-quadrant baseplate (vertex-colored regions) with lighting and shadows on the plate, obstacles, and water.
 
 ## Team members
 
@@ -52,7 +52,7 @@ water-simulation/
 ├── index.html              # Entry point, Vista OS shell, import map
 ├── src/
 │   ├── main.js             # Scene setup, animation loop, adaptive quality
-│   ├── environment.js      # Procedural terrain, tank alignment, constants
+│   ├── environment.js      # Four-quadrant baseplate, tank alignment
 │   ├── particles.js        # GPU SPH simulation (GPUComputationRenderer)
 │   ├── guicontrols.js      # lil-gui panels, login flow, window chrome
 │   └── render/

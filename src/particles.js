@@ -32,15 +32,15 @@ export class ParticleFluid {
             u_tankMatrixWorld: { value: new THREE.Matrix4() },
             u_tankMatrixWorldInverse: { value: new THREE.Matrix4() },
 
-            u_periodicFlow: { value: 1.0 },
+            u_periodicFlow: { value: 0.0 },
             u_flowPeriodWorld: { value: 40.0 },
-            u_flowAccel: { value: 1.5 },
+            u_flowAccel: { value: 0.0 },
 
-            u_riverDepth:  { value: 3.0 },
-            u_riverWidth:  { value: 20.0 },
-            u_cliffHeight: { value: 3.5 },
-            u_flowSlope:   { value: 0.05 },
-            u_riverCliffZ: { value: -56.0 },  // = -planeLength * 0.35 at default planeLength 160
+            u_baseYOffset:  { value: 0.0 },
+            u_baseBumpAmp:  { value: 0.12 },
+            u_baseBumpFreq: { value: 0.06 },
+            u_baseTiltX:    { value: 0.0 },
+            u_baseTiltZ:    { value: 0.0 },
 
             u_rockPositions: { value: [
                 new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(),
@@ -48,9 +48,7 @@ export class ParticleFluid {
             ]},
             u_rockRadii: { value: [0, 0, 0, 0, 0, 0] },
 
-            // Local-Z coordinate (in OBB space, -0.5..+0.5) where wrapped particles
-            // should land. Set to the flat section just past the cliff so particles
-            // re-enter the calm zone instead of the cliff top.
+            // Local-Z (OBB space) landing point when periodic Z wrap teleports particles.
             u_wrapDestLocalZ: { value: 0.0 },
         };
 
@@ -58,8 +56,8 @@ export class ParticleFluid {
         this.sortedIndicesData = new Float32Array(this.particleCount * 4);
         this.gpuReadBuffer     = new Float32Array(this.particleCount * 4);
 
-        // World-space tank centre used to seed particle spawn inside the river.
-        // Set by syncFluidTankToRiver before resetParticles is called.
+        // World-space tank centre used to seed particle spawn on the baseplate.
+        // Set by syncFluidTank (environment.js) before resetParticles is called.
         this.spawnOrigin = new THREE.Vector3(0, 0, 0);
 
         // Performance: track max speed across frames without full velocity readback.
@@ -236,7 +234,7 @@ export class ParticleFluid {
                 data[k + 3] = 1.0;
             }
         } else {
-            // Near-zero initial velocity so the spawn blob settles onto the riverbed
+            // Near-zero initial velocity so the spawn blob settles onto the baseplate
             // under gravity/pressure without blasting particles into the lower channel.
             for (let k = 0; k < data.length; k += 4) {
                 data[k + 0] = (Math.random() - 0.5) * 0.5;
@@ -459,17 +457,15 @@ export class ParticleFluid {
             uniform float u_periodicFlow;
             uniform float u_flowPeriodWorld;
             uniform float u_flowAccel;
-            uniform float u_riverDepth;
-            uniform float u_riverWidth;
-            uniform float u_cliffHeight;
-            uniform float u_flowSlope;
-            uniform float u_riverCliffZ;
+            uniform float u_baseYOffset;
+            uniform float u_baseBumpAmp;
+            uniform float u_baseBumpFreq;
+            uniform float u_baseTiltX;
+            uniform float u_baseTiltZ;
 
             float terrainHeight(float x, float z) {
-                float h = -u_riverDepth * exp(-(x * x) / u_riverWidth);
-                h += (1.0 - tanh((z - u_riverCliffZ) * 0.45)) * u_cliffHeight;
-                h -= z * u_flowSlope;
-                return h;
+                float ripple = u_baseBumpAmp * sin(x * u_baseBumpFreq) * cos(z * u_baseBumpFreq);
+                return u_baseYOffset + ripple - x * u_baseTiltX - z * u_baseTiltZ;
             }
 
             // --- SPH Kernel DERIVATIVES for pressure gradient ---
@@ -512,8 +508,6 @@ export class ParticleFluid {
                         u_flowAccel * 0.16 + rng2 * 0.45
                     );
                 }
-
-                vec3 localPosForOut = (u_tankMatrixWorldInverse * vec4(pos1, 1.0)).xyz;
 
                 vec2 densityData = texture2D(textureDensity, uv).rg;
                 float dens1 = max(densityData.r, 0.001);
@@ -622,16 +616,7 @@ export class ParticleFluid {
                 acceleration.y += u_gravity;
                 if (u_periodicFlow > 0.5) {
                     acceleration.z += u_flowAccel;
-                    // zPush removed: it was piling particles against the +Z OBB face,
-                    // creating a visible mini-waterfall at the downstream exit.
-                    // Wrap momentum comes from base u_flowAccel alone.
                 }
-
-                // Soft channel-centering: pulls particles toward x=0 (river trough).
-                // Uses the local terrain Gaussian curvature — stronger farther from center.
-                float xDist = pos1.x;
-                float centerPull = -xDist * 0.52;
-                acceleration.x += centerPull;
 
                 // Time-varying agitation (horizontal + vertical) so the pool feels alive
                 // and reacts more visibly to the simulation.
@@ -646,16 +631,6 @@ export class ParticleFluid {
                 if (accelLen > 500.0) acceleration *= 500.0 / accelLen;
                 
                 vel1 += acceleration * u_deltaTime;
-
-                // Splash-zone damper: absorb excess speed near the cliff base so
-                // the waterfall impact doesn't send particles flying across the river.
-                float cliffDist = abs(pos1.z - u_riverCliffZ);
-                if (cliffDist < 12.0 && vel1.y < -5.0) {
-                    float dampFactor = smoothstep(12.0, 0.0, cliffDist) * 0.35;
-                    vel1.y *= (1.0 - dampFactor);
-                    vel1.x  *= (1.0 - dampFactor * 0.5);
-                    vel1.z  *= (1.0 - dampFactor * 0.5);
-                }
 
                 // Boundary collision in local tank space
                 vec3 localPos = (u_tankMatrixWorldInverse * vec4(pos1, 1.0)).xyz;
@@ -726,18 +701,16 @@ export class ParticleFluid {
             uniform mat4 u_tankMatrixWorld;
             uniform mat4 u_tankMatrixWorldInverse;
             uniform float u_periodicFlow;
-            uniform float u_riverDepth;
-            uniform float u_riverWidth;
-            uniform float u_cliffHeight;
-            uniform float u_flowSlope;
-            uniform float u_riverCliffZ;
+            uniform float u_baseYOffset;
+            uniform float u_baseBumpAmp;
+            uniform float u_baseBumpFreq;
+            uniform float u_baseTiltX;
+            uniform float u_baseTiltZ;
             uniform float u_wrapDestLocalZ;
 
             float terrainHeight(float x, float z) {
-                float h = -u_riverDepth * exp(-(x * x) / u_riverWidth);
-                h += (1.0 - tanh((z - u_riverCliffZ) * 0.45)) * u_cliffHeight;
-                h -= z * u_flowSlope;
-                return h;
+                float ripple = u_baseBumpAmp * sin(x * u_baseBumpFreq) * cos(z * u_baseBumpFreq);
+                return u_baseYOffset + ripple - x * u_baseTiltX - z * u_baseTiltZ;
             }
 
             void main() {
@@ -771,9 +744,6 @@ export class ParticleFluid {
                     float r2 = fract(sin(dot(uv + r1, vec2(39.346, 11.135))) * 24634.6415);
                     localPos.x += (r1 - 0.5) * 0.14;
                     localPos.y += (r2 - 0.5) * 0.10;
-                    // Land in the flat section downstream of the cliff instead of the cliff
-                    // top. This prevents wrapped particles from immediately falling off the
-                    // waterfall again and feeding the downstream accumulation loop.
                     localPos.z = u_wrapDestLocalZ + (r1 - 0.5) * 0.04;
                     localPos.x = clamp(localPos.x, -0.5, 0.5);
                     localPos.y = clamp(localPos.y, -0.5, 0.5);
