@@ -71,8 +71,8 @@ export class FluidRenderer {
             surfaceExposure: 1.14,
             thicknessScale: 0.001,
             detailNormalBlend: 0.85,   // 0 = smooth only, 1 = raw detail only
-            foamScale: 0.2,
-            foamSpeedMin: 1.5,    // speed below which no foam appears
+            foamScale: 0.75,
+            foamSpeedMin: 1.0,    // speed below which no foam appears
             foamSpeedMax: 20.0,   // speed above which foam is fully white
             causticsStrength: 0.0,    // fake floor caustics intensity
             fluidScale: 0.65,   // fluid RT resolution multiplier (higher = sharper fluid)
