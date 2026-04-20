@@ -337,7 +337,7 @@ window.__resizeFluid = resizeFluid;
 // Match drawing buffer to the canvas wrapper whenever the window or layout changes.
 window.addEventListener('resize', resizeFluid);
 
-let isDebugMode = localStorage.getItem('debugMode') === 'true';
+let isDebugMode = false;
 let savedBallRadius = 1.5; // default radius
 
 function setDebugMode(active) {
