@@ -337,6 +337,49 @@ window.__resizeFluid = resizeFluid;
 // Match drawing buffer to the canvas wrapper whenever the window or layout changes.
 window.addEventListener('resize', resizeFluid);
 
+let isDebugMode = localStorage.getItem('debugMode') === 'true';
+let savedBallRadius = 1.5; // default radius
+
+function setDebugMode(active) {
+    isDebugMode = active;
+    localStorage.setItem('debugMode', active.toString());
+    
+    const sidebar = document.getElementById('settings-sidebar');
+    const canvasWrap = document.getElementById('canvas-wrapper');
+    if (sidebar && canvasWrap) {
+        if (active) {
+            sidebar.style.display = 'flex';
+            canvasWrap.style.width = '74%';
+        } else {
+            sidebar.style.display = 'none';
+            canvasWrap.style.width = '100%';
+        }
+    }
+    
+    ballMesh.visible = active;
+    tankMesh.visible = true;
+    if (typeof tankOutline !== 'undefined') tankOutline.visible = true;
+    ballTracker.style.display = active ? 'block' : 'none';
+    
+    if (fluid && fluid.sphUniforms) {
+        if (active) {
+            fluid.sphUniforms.u_ballRadius.value = savedBallRadius;
+        } else {
+            if (fluid.sphUniforms.u_ballRadius.value > 0.0) {
+                savedBallRadius = fluid.sphUniforms.u_ballRadius.value;
+            }
+            fluid.sphUniforms.u_ballRadius.value = 0.0;
+        }
+    }
+    
+    if (typeof resizeFluid === 'function') {
+        resizeFluid();
+    }
+}
+
+// Initial application
+setDebugMode(isDebugMode);
+
 try {
     setupGUI(uiSettings, {
         ...environmentTools,
@@ -351,6 +394,7 @@ try {
         pauseSim,
         muteAudio,
         resumeAudio,
+        toggleDebugMode: () => setDebugMode(!isDebugMode),
     });
 } catch (err) {
     console.error('[WaterSim] setupGUI failed:', err);

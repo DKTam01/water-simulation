@@ -98,7 +98,14 @@ export function setupGUI(uiSettings, callbacks) {
 
     const btnMin = document.getElementById('btn-min');
     const btnClose = document.getElementById('btn-close');
+    const btnDebug = document.getElementById('btn-debug');
     const taskbarApp = document.getElementById('taskbar-app');
+
+    if (btnDebug && callbacks.toggleDebugMode) {
+        btnDebug.addEventListener('click', () => {
+            callbacks.toggleDebugMode();
+        });
+    }
 
     if (btnMin && appWindow) {
         btnMin.addEventListener('click', () => {
