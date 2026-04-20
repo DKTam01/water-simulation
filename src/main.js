@@ -213,9 +213,9 @@ scene.add(tankMesh);
 const fluid = new ParticleFluid(renderer, scene, uiSettings);
 
 const staticRockData = [
-    { pos: [5.6, 0.80, -3.20], r: 4.0 },
-    { pos: [-4.80, 'yy', 14.40], r: 4.0 },
-    { pos: [6.40, 'yy', 33.60], r: 4.0 }
+    { pos: [5.6, 'yy', 5.0], r: 3.0 },
+    { pos: [-4.80, 'yy', 14.40], r: 3.0 },
+    { pos: [1.5, 'yy', 33.60], r: 3.0 }
 ];
 const rockMat = new THREE.MeshStandardMaterial({ color: 0x4a4f54, roughness: 0.95 });
 const rockGeo = new THREE.SphereGeometry(1, 32, 32);

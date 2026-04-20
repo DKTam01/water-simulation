@@ -64,15 +64,15 @@ export class FluidRenderer {
             absorptionStrength: 0.20,
             ior: 2.5,    // index of refraction for water
             refractionStrength: 8.0,    // scale for physical refraction ray
-            envMapIntensity: 2.00,   // brighter sky in reflections (reference look)
+            envMapIntensity: 1.5,   // brighter sky in reflections (reference look)
             specularStrength: 0.01,
-            tintMix: 0.86,
+            tintMix: 0.65,
             scatterStrength: 0.78,
             surfaceExposure: 1.14,
             thicknessScale: 0.001,
-            detailNormalBlend: 0.15,   // 0 = smooth only, 1 = raw detail only
+            detailNormalBlend: 0.85,   // 0 = smooth only, 1 = raw detail only
             foamScale: 0.2,
-            foamSpeedMin: 7.5,    // speed below which no foam appears
+            foamSpeedMin: 1.5,    // speed below which no foam appears
             foamSpeedMax: 20.0,   // speed above which foam is fully white
             causticsStrength: 0.0,    // fake floor caustics intensity
             fluidScale: 0.65,   // fluid RT resolution multiplier (higher = sharper fluid)

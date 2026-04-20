@@ -99,7 +99,7 @@ export class ParticleFluid {
         this._wpReadBuffer = new Float32Array(this.particleCount * 4); // velocity readback
         // Expose params for GUI tuning
         this.whiteParticleParams = {
-            enabled: true,
+            enabled: false,
             spawnRate: WP_TRAPPED_AIR_SCALE,
             lifetimeMin: WP_LIFETIME_MIN,
             lifetimeMax: WP_LIFETIME_MAX,
