@@ -59,6 +59,13 @@ export function setupGUI(uiSettings, callbacks) {
         }
     });
 
+    // Disable mouse wheel scrolling on Lil-GUI sliders to prevent accidental changes
+    document.addEventListener('wheel', (e) => {
+        if (e.target.closest('.lil-gui input')) {
+            e.stopPropagation();
+        }
+    }, { capture: true });
+
     const titleBar = document.getElementById('window-titlebar');
     let isDragging = false;
     let offsetX;
@@ -153,7 +160,7 @@ export function setupGUI(uiSettings, callbacks) {
 
     const terrainContainer = document.getElementById('gui-terrain-container');
     const guiTerrain = new GUI({ container: terrainContainer });
-    guiTerrain.add(uiSettings, 'baseplateSize', 80, 400, 1).name('Baseplate size').onChange(callbacks.generateTerrain);
+    guiTerrain.add(uiSettings, 'baseplateSize', 20, 80, 1).name('Baseplate size').onChange(callbacks.generateTerrain);
     guiTerrain.add(uiSettings, 'baseplateSeg', 32, 400, 1).name('Baseplate subdivisions').onChange(callbacks.generateTerrain);
     guiTerrain.add(uiSettings, 'baseplateYOffset', -8, 8, 0.05).name('Plate height offset').onChange(callbacks.generateTerrain);
     guiTerrain.add(uiSettings, 'baseplateBumpAmp', 0, 2.5, 0.01).name('Surface ripple amp').onChange(callbacks.generateTerrain);
@@ -273,11 +280,11 @@ export function setupGUI(uiSettings, callbacks) {
         if (typeof callbacks.syncFluidVolume === 'function') callbacks.syncFluidVolume();
     };
     fluidVol
-        .add(uiSettings, 'fluidRegionWidth', 20, 380, 1)
+        .add(uiSettings, 'fluidRegionWidth', 10, 20, 1)
         .name('Width (world X)')
         .onChange(onFluidVolumeChange);
     fluidVol
-        .add(uiSettings, 'fluidRegionLength', 20, 380, 1)
+        .add(uiSettings, 'fluidRegionLength', 10, 100, 1)
         .name('Length (world Z)')
         .onChange(onFluidVolumeChange);
     fluidVol
@@ -305,21 +312,24 @@ export function setupGUI(uiSettings, callbacks) {
         .add(uniforms.u_smoothingRadius, 'value', 0.5, 3.0)
         .name('Smoothing radius')
         .onChange((v) => fluid.rebuildSpatialHash(v));
-    sphFolder.add(uniforms.u_targetDensity, 'value', 10.0, 300.0).name('Target density');
+    sphFolder.add(uniforms.u_targetDensity, 'value', 1.0, 100.0).name('Target density');
     sphFolder.add(uniforms.u_pressureMultiplier, 'value', 1.0, 200.0).name('Pressure');
     sphFolder.add(uniforms.u_nearPressureMultiplier, 'value', 1.0, 50.0).name('Near pressure');
     sphFolder.add(uniforms.u_viscosityMultiplier, 'value', 0.0, 1.0).name('Viscosity');
     sphFolder.add(uniforms.u_gravity, 'value', -40.0, 0.0).name('Gravity');
     sphFolder.add(uniforms.u_collisionDamping, 'value', 0.0, 1.0).name('Wall damping');
     sphFolder.add(uniforms.u_agitation, 'value', 0.0, 5.0).name('Agitation');
+    sphFolder.add(uniforms.u_cohesionStrength, 'value', 0.0, 1.0, 0.01)
+        .name('Cohesion (surface tension)')
+        .title('0 = repulsion only (no clumping). Raise slowly — >0.1 may cause instability.');
     sphFolder.open();
 
     const ballFolder = guiParticle.addFolder('Interaction ball');
-    ballFolder.add(ballMesh.position, 'x', -35, 35).name('Ball X');
-    ballFolder.add(ballMesh.position, 'y', -5, 55).name('Ball Y');
-    ballFolder.add(ballMesh.position, 'z', -90, 90).name('Ball Z');
+    ballFolder.add(ballMesh.position, 'x', -35, 35).name('Ball X').listen();
+    ballFolder.add(ballMesh.position, 'y', -5, 55).name('Ball Y').listen();
+    ballFolder.add(ballMesh.position, 'z', -90, 90).name('Ball Z').listen();
     const ballRadiusProxy = { radius: 1.5 };
-    ballFolder.add(ballRadiusProxy, 'radius', 0.5, 8.0, 0.1).name('Ball Radius').onChange((v) => {
+    ballFolder.add(ballRadiusProxy, 'radius', 0.5, 40.0, 0.1).name('Ball Scale (Radius)').onChange((v) => {
         ballMesh.scale.setScalar(v / 1.5);
         fluid.sphUniforms.u_ballRadius.value = v;
     });
@@ -345,5 +355,20 @@ export function setupGUI(uiSettings, callbacks) {
             }
         });
     simFolder.open();
+
+    // ── White Particles (Foam / Spray / Bubbles) ─────────────────────────────
+    const wp = fluid.whiteParticleParams;
+    const foamFolder = guiParticle.addFolder('White Particles (Foam)');
+    foamFolder.add(wp, 'enabled').name('Enable foam/spray/bubbles')
+        .onChange((v) => { if (!v) fluid._wpMesh.count = 0; });
+    foamFolder.add(wp, 'spawnRate', 0.0, 20.0, 0.1).name('Spawn rate');
+    foamFolder.add(wp, 'opacity', 0.0, 1.0, 0.01).name('Opacity')
+        .onChange((v) => { if (fluid._wpMat) fluid._wpMat.uniforms.u_opacity.value = v; });
+    foamFolder.add(wp, 'lifetimeMin', 0.5, 10.0, 0.1).name('Lifetime min (s)');
+    foamFolder.add(wp, 'lifetimeMax', 1.0, 30.0, 0.5).name('Lifetime max (s)');
+    foamFolder.add(wp, 'sprayMaxNbrs', 1, 20, 1).name('Spray threshold (nbrs ≤)');
+    foamFolder.add(wp, 'bubbleMinNbrs', 5, 40, 1).name('Bubble threshold (nbrs ≥)');
+    foamFolder.add(wp, 'bubbleBuoyancy', 0.0, 1.0, 0.01).name('Bubble buoyancy');
+    foamFolder.open();
 
 }

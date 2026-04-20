@@ -139,21 +139,21 @@ const resumeAudio = () => {
 const uiSettings = {
     showWireframe: false,
     timeOfDay: 'Day',
-    baseplateSize: 260,
+    baseplateSize: 80,
     baseplateSeg: 240,
     baseplateYOffset: 0,
     baseplateBumpAmp: 0.15,
     baseplateBumpFreq: 0.055,
     baseplateTiltX: 0,
-    baseplateTiltZ: 0.001,
+    baseplateTiltZ: 0.0,
 
-    fluidRegionWidth: 120,
-    fluidRegionLength: 120,
+    fluidRegionWidth: 20,
+    fluidRegionLength: 85,
     fluidHeadroom: 14,
     fluidContainerLift: 1.25,
 
     waterColor: '#0099cc',
-    loopRiver: false,
+    loopRiver: true,
     flowAccel: 0.35,
 
     particleResolution: 64,
@@ -173,6 +173,26 @@ ballMesh.castShadow = true;
 ballMesh.receiveShadow = true;
 scene.add(ballMesh);
 
+const ballKeys = {};
+document.addEventListener('keydown', (e) => { ballKeys[e.code] = true; });
+document.addEventListener('keyup', (e) => { ballKeys[e.code] = false; });
+
+const ballTracker = document.createElement('div');
+ballTracker.style.position = 'absolute';
+ballTracker.style.top = '15px';
+ballTracker.style.left = '15px';
+ballTracker.style.color = '#fff';
+ballTracker.style.background = 'rgba(0, 0, 0, 0.6)';
+ballTracker.style.padding = '8px 12px';
+ballTracker.style.borderRadius = '6px';
+ballTracker.style.fontFamily = 'monospace';
+ballTracker.style.fontSize = '14px';
+ballTracker.style.pointerEvents = 'none';
+ballTracker.style.zIndex = '100';
+ballTracker.style.border = '1px solid rgba(255, 255, 255, 0.2)';
+ballTracker.innerText = 'Ball XYZ: 0.00, 0.00, 0.00';
+document.getElementById('canvas-wrapper').appendChild(ballTracker);
+
 const tankGeo = new THREE.BoxGeometry(1, 1, 1);
 const tankMesh = new THREE.Mesh(
     tankGeo,
@@ -191,6 +211,33 @@ tankMesh.add(tankOutline);
 scene.add(tankMesh);
 
 const fluid = new ParticleFluid(renderer, scene, uiSettings);
+
+const staticRockData = [
+    { pos: [5.6, 0.80, -3.20], r: 4.0 },
+    { pos: [-4.80, 'yy', 14.40], r: 4.0 },
+    { pos: [6.40, 'yy', 33.60], r: 4.0 }
+];
+const rockMat = new THREE.MeshStandardMaterial({ color: 0x4a4f54, roughness: 0.95 });
+const rockGeo = new THREE.SphereGeometry(1, 32, 32);
+const rockObstacles = staticRockData.map(data => {
+    let y = data.pos[1];
+    if (y === 'yy') {
+        const x = data.pos[0];
+        const z = data.pos[2];
+        const amp = uiSettings.baseplateBumpAmp;
+        const freq = uiSettings.baseplateBumpFreq;
+        const ripple = amp * Math.sin(x * freq) * Math.cos(z * freq);
+        y = uiSettings.baseplateYOffset + ripple - x * uiSettings.baseplateTiltX - z * uiSettings.baseplateTiltZ;
+    }
+    const mesh = new THREE.Mesh(rockGeo, rockMat);
+    mesh.scale.setScalar(data.r);
+    mesh.position.set(data.pos[0], y, data.pos[2]);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+    return { position: mesh.position, radius: data.r };
+});
+fluid.setRocks(rockObstacles);
 
 let envCubeTexture = null;
 {
@@ -259,7 +306,7 @@ function syncTankAndFluidUniforms() {
     fluid.sphUniforms.u_baseBumpFreq.value = uiSettings.baseplateBumpFreq;
     fluid.sphUniforms.u_baseTiltX.value = uiSettings.baseplateTiltX;
     fluid.sphUniforms.u_baseTiltZ.value = uiSettings.baseplateTiltZ;
-    fluid.sphUniforms.u_wrapDestLocalZ.value = 0;
+    fluid.sphUniforms.u_wrapDestLocalZ.value = -0.25; // Map to the spawnZ (-z section halfway)
 }
 
 syncTankAndFluidUniforms();
@@ -340,8 +387,18 @@ function animate() {
     const delta = Math.min(clock.getDelta(), 0.032);
     checkAdaptiveFPS();
 
+    const ballSpeed = 25.0 * delta;
+    if (ballKeys['KeyW']) ballMesh.position.z -= ballSpeed;
+    if (ballKeys['KeyS']) ballMesh.position.z += ballSpeed;
+    if (ballKeys['KeyA']) ballMesh.position.x -= ballSpeed;
+    if (ballKeys['KeyD']) ballMesh.position.x += ballSpeed;
+    if (ballKeys['KeyE']) ballMesh.position.y += ballSpeed;
+    if (ballKeys['KeyQ']) ballMesh.position.y -= ballSpeed;
+
     tankMesh.updateMatrixWorld();
     ballMesh.updateMatrixWorld();
+
+    ballTracker.innerText = `Ball XYZ: ${ballMesh.position.x.toFixed(2)}, ${ballMesh.position.y.toFixed(2)}, ${ballMesh.position.z.toFixed(2)}`;
 
     fluid.update(ballMesh.position, clock.getElapsedTime(), delta, tankMesh);
     fluidRenderer.render(scene, camera, tankMesh);

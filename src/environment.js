@@ -50,11 +50,15 @@ export function syncFluidTank(tankMesh, uiSettings, sphUniforms, fluid) {
 
     const headroom = Math.max(4, uiSettings.fluidHeadroom);
 
+    // Anchor the front face (+z) of the bounding box to exactly the front edge of the baseplate.
+    // This allows it to end without spilling off into the void.
+    const centerZ = plateHalf - halfLen;
+
     let minBedY = Infinity;
     let maxBedY = -Infinity;
     const steps = TERRAIN_SAMPLE_STEPS;
     for (let iz = 0; iz <= steps; iz++) {
-        const z = -halfLen + (halfLen * 2 * iz) / steps;
+        const z = centerZ - halfLen + (halfLen * 2 * iz) / steps;
         for (let ix = 0; ix <= steps; ix++) {
             const x = -halfW + (halfW * 2 * ix) / steps;
             const y = sampleBaseplateY(x, z, uiSettings);
@@ -65,7 +69,6 @@ export function syncFluidTank(tankMesh, uiSettings, sphUniforms, fluid) {
 
     const halfH = Math.min((maxBedY - minBedY) * 0.5 + headroom, maxBoxHalf - 0.5);
     const centerY = minBedY + halfH;
-    const centerZ = 0;
     const lift = Math.max(0, uiSettings.fluidContainerLift ?? 0);
 
     tankMesh.rotation.set(0, 0, 0);
@@ -80,7 +83,8 @@ export function syncFluidTank(tankMesh, uiSettings, sphUniforms, fluid) {
 
     if (fluid) {
         const spawnX = 0;
-        const spawnZ = 0;
+        // Spawn halfway into the -z (rear) portion of the fluid simulation box
+        const spawnZ = centerZ - halfLen * 0.5;
         const bedYSpawn = sampleBaseplateY(spawnX, spawnZ, uiSettings);
         fluid.spawnOrigin.set(spawnX, bedYSpawn + halfH * SPAWN_Y_FRACTION + lift, spawnZ);
     }

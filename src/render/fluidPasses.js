@@ -1,18 +1,18 @@
 import * as THREE from 'three';
-import { depthVertex,     depthFragment     } from './shaders/fluidDepth.glsl.js';
+import { depthVertex, depthFragment } from './shaders/fluidDepth.glsl.js';
 import { thicknessVertex, thicknessFragment } from './shaders/fluidThickness.glsl.js';
-import { blurVertex,      blurFragment      } from './shaders/fluidBlur.glsl.js';
+import { blurVertex, blurFragment } from './shaders/fluidBlur.glsl.js';
 import { compositeVertex, compositeFragment } from './shaders/fluidComposite.glsl.js';
-import { foamVertex,      foamFragment      } from './shaders/fluidFoam.glsl.js';
+import { foamVertex, foamFragment } from './shaders/fluidFoam.glsl.js';
 
 // ---------------------------------------------------------------------------
 // Minimal fullscreen-quad renderer used for all post-processing passes.
 // ---------------------------------------------------------------------------
 class FullscreenPass {
     constructor(material) {
-        this._cam   = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        this._cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
         this._scene = new THREE.Scene();
-        const mesh  = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
+        const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
         mesh.frustumCulled = false;
         this._scene.add(mesh);
     }
@@ -36,48 +36,48 @@ class FullscreenPass {
 export class FluidRenderer {
     constructor(renderer, particleFluid) {
         this.renderer = renderer;
-        this.fluid    = particleFluid;
+        this.fluid = particleFluid;
 
         const size = new THREE.Vector2();
         renderer.getDrawingBufferSize(size);
-        this.width  = size.x;
+        this.width = size.x;
         this.height = size.y;
 
         // Art / quality knobs — exposed to GUI in main.js
         this.params = {
-            enabled:            true,
-            showParticles:      false,
-            particleRadius:     0.62,
-            blurRadius:         30.5,
-            blurDepthFalloff:   1.0,
-            blurIterations:     2,       // how many H+V passes to run
-            normalScale:        6.0,
-            waterR:             0.06,
-            waterG:             0.32,
-            waterB:             0.82,
-            shallowR:           0.25,
-            shallowG:           0.88,
-            shallowB:           0.95,
-            absorbR:            4.5,
-            absorbG:            1.5,
-            absorbB:            0.4,
+            enabled: true,
+            showParticles: false,
+            particleRadius: 0.62,
+            blurRadius: 30.5,
+            blurDepthFalloff: 1.0,
+            blurIterations: 2,       // how many H+V passes to run
+            normalScale: 6.0,
+            waterR: 0.06,
+            waterG: 0.32,
+            waterB: 0.82,
+            shallowR: 0.25,
+            shallowG: 0.88,
+            shallowB: 0.95,
+            absorbR: 4.5,
+            absorbG: 1.5,
+            absorbB: 0.4,
             absorptionStrength: 0.20,
-            ior:                2.5,    // index of refraction for water
+            ior: 2.5,    // index of refraction for water
             refractionStrength: 8.0,    // scale for physical refraction ray
-            envMapIntensity:    2.00,   // brighter sky in reflections (reference look)
-            specularStrength:   0.01,
-            tintMix:            0.86,
-            scatterStrength:    0.78,
-            surfaceExposure:    1.14,
-            thicknessScale:     0.001,
-            detailNormalBlend:  0.15,   // 0 = smooth only, 1 = raw detail only
-            foamScale:          0.3,
-            foamSpeedMin:       7.5,    // speed below which no foam appears
-            foamSpeedMax:       20.0,   // speed above which foam is fully white
-            causticsStrength:   0.6,    // fake floor caustics intensity
-            fluidScale:         0.65,   // fluid RT resolution multiplier (higher = sharper fluid)
+            envMapIntensity: 2.00,   // brighter sky in reflections (reference look)
+            specularStrength: 0.01,
+            tintMix: 0.86,
+            scatterStrength: 0.78,
+            surfaceExposure: 1.14,
+            thicknessScale: 0.001,
+            detailNormalBlend: 0.15,   // 0 = smooth only, 1 = raw detail only
+            foamScale: 0.2,
+            foamSpeedMin: 7.5,    // speed below which no foam appears
+            foamSpeedMax: 20.0,   // speed above which foam is fully white
+            causticsStrength: 0.0,    // fake floor caustics intensity
+            fluidScale: 0.65,   // fluid RT resolution multiplier (higher = sharper fluid)
             densityRadiusStrength: 0.1, // 0=off, 1=fully adaptive splats (less visible balls)
-            debugMode:          0.0,
+            debugMode: 0.0,
         };
 
         /** Matches main scene directional light (world space, normalized). */
@@ -100,33 +100,33 @@ export class FluidRenderer {
         const s = this.params.fluidScale;
         const fw = Math.max(1, Math.round(w * s));
         const fh = Math.max(1, Math.round(h * s));
-        this.fluidWidth  = fw;
+        this.fluidWidth = fw;
         this.fluidHeight = fh;
 
         this.sceneRT = new THREE.WebGLRenderTarget(w, h, {
             minFilter: THREE.LinearFilter,
             magFilter: THREE.LinearFilter,
-            format:    THREE.RGBAFormat,
-            type:      THREE.UnsignedByteType,
+            format: THREE.RGBAFormat,
+            type: THREE.UnsignedByteType,
         });
-        this.sceneRT.depthTexture      = new THREE.DepthTexture(w, h);
+        this.sceneRT.depthTexture = new THREE.DepthTexture(w, h);
         this.sceneRT.depthTexture.type = THREE.UnsignedIntType;
 
         const mkFloat = (depthBuf, useLinear) => new THREE.WebGLRenderTarget(fw, fh, {
             minFilter: useLinear ? THREE.LinearFilter : THREE.NearestFilter,
             magFilter: useLinear ? THREE.LinearFilter : THREE.NearestFilter,
-            format:    THREE.RGBAFormat,
-            type:      THREE.FloatType,
+            format: THREE.RGBAFormat,
+            type: THREE.FloatType,
             depthBuffer: depthBuf,
         });
 
-        this.depthRT      = mkFloat(true,  false);  // hw depth for correct sorting
-        this.thicknessRT  = mkFloat(false, false);   // additive, no depth test
-        this.blurHRT      = mkFloat(false, true);    // bilinear for upsample
-        this.blurVRT      = mkFloat(false, true);
+        this.depthRT = mkFloat(true, false);  // hw depth for correct sorting
+        this.thicknessRT = mkFloat(false, false);   // additive, no depth test
+        this.blurHRT = mkFloat(false, true);    // bilinear for upsample
+        this.blurVRT = mkFloat(false, true);
         this.thickBlurHRT = mkFloat(false, true);
         this.thickBlurVRT = mkFloat(false, true);
-        this.foamRT       = mkFloat(false, true);
+        this.foamRT = mkFloat(false, true);
     }
 
     // -----------------------------------------------------------------------
@@ -161,21 +161,21 @@ export class FluidRenderer {
         const p = this.params;
 
         this._depthMat = new THREE.ShaderMaterial({
-            vertexShader:   depthVertex,
+            vertexShader: depthVertex,
             fragmentShader: depthFragment,
             uniforms: {
-                texturePosition:  { value: null },
-                textureDensity:   { value: null },
+                texturePosition: { value: null },
+                textureDensity: { value: null },
                 u_particleRadius: { value: p.particleRadius },
-                u_targetDensity:  { value: this.fluid.sphUniforms.u_targetDensity.value },
+                u_targetDensity: { value: this.fluid.sphUniforms.u_targetDensity.value },
                 u_densityRadiusStrength: { value: 1.0 },
-                u_near:           { value: 0.1 },
-                u_far:            { value: 1000.0 },
-                u_sceneDepth:     { value: null },
-                u_resolution:     { value: new THREE.Vector2(this.fluidWidth, this.fluidHeight) },
+                u_near: { value: 0.1 },
+                u_far: { value: 1000.0 },
+                u_sceneDepth: { value: null },
+                u_resolution: { value: new THREE.Vector2(this.fluidWidth, this.fluidHeight) },
             },
-            side:       THREE.DoubleSide,
-            depthTest:  true,
+            side: THREE.DoubleSide,
+            depthTest: true,
             depthWrite: true,
         });
 
@@ -196,20 +196,20 @@ export class FluidRenderer {
         const p = this.params;
 
         this._thickMat = new THREE.ShaderMaterial({
-            vertexShader:   thicknessVertex,
+            vertexShader: thicknessVertex,
             fragmentShader: thicknessFragment,
             uniforms: {
-                texturePosition:  { value: null },
-                textureDensity:   { value: null },
+                texturePosition: { value: null },
+                textureDensity: { value: null },
                 u_particleRadius: { value: p.particleRadius },
                 u_thicknessScale: { value: p.thicknessScale },
-                u_targetDensity:  { value: this.fluid.sphUniforms.u_targetDensity.value },
+                u_targetDensity: { value: this.fluid.sphUniforms.u_targetDensity.value },
                 u_densityRadiusStrength: { value: 1.0 },
             },
-            blending:    THREE.AdditiveBlending,
+            blending: THREE.AdditiveBlending,
             transparent: true,
-            depthTest:   false,
-            depthWrite:  false,
+            depthTest: false,
+            depthWrite: false,
         });
 
         this._thickMesh = new THREE.InstancedMesh(
@@ -229,23 +229,23 @@ export class FluidRenderer {
         const p = this.params;
 
         this._foamMat = new THREE.ShaderMaterial({
-            vertexShader:   foamVertex,
+            vertexShader: foamVertex,
             fragmentShader: foamFragment,
             uniforms: {
-                texturePosition:  { value: null },
-                textureVelocity:  { value: null },
-                textureDensity:   { value: null },
+                texturePosition: { value: null },
+                textureVelocity: { value: null },
+                textureDensity: { value: null },
                 u_particleRadius: { value: p.particleRadius },
-                u_targetDensity:  { value: this.fluid.sphUniforms.u_targetDensity.value },
+                u_targetDensity: { value: this.fluid.sphUniforms.u_targetDensity.value },
                 u_densityRadiusStrength: { value: 1.0 },
-                u_foamSpeedMin:   { value: p.foamSpeedMin },
-                u_foamSpeedMax:   { value: p.foamSpeedMax },
-                u_foamScale:      { value: p.foamScale },
+                u_foamSpeedMin: { value: p.foamSpeedMin },
+                u_foamSpeedMax: { value: p.foamSpeedMax },
+                u_foamScale: { value: p.foamScale },
             },
-            blending:    THREE.AdditiveBlending,
+            blending: THREE.AdditiveBlending,
             transparent: true,
-            depthTest:   false,
-            depthWrite:  false,
+            depthTest: false,
+            depthWrite: false,
         });
 
         this._foamMesh = new THREE.InstancedMesh(
@@ -266,19 +266,19 @@ export class FluidRenderer {
         const p = this.params;
 
         this._blurMat = new THREE.ShaderMaterial({
-            vertexShader:   blurVertex,
+            vertexShader: blurVertex,
             fragmentShader: blurFragment,
             uniforms: {
-                u_depthTexture:        { value: null },
-                u_rangeRefTexture:     { value: null },  // depth ref for thickness blur (mode 1)
-                u_direction:           { value: new THREE.Vector2(1, 0) },
-                u_resolution:          { value: new THREE.Vector2(this.fluidWidth, this.fluidHeight) },
-                u_blurRadius:          { value: p.blurRadius },
-                u_blurDepthFalloff:    { value: p.blurDepthFalloff },
-                u_blurMode:            { value: 0 },     // 0 = depth, 1 = thickness
-                u_worldRadius:         { value: 0.0 },    // 0 = use fixed blur
-                u_projScale:           { value: 1.0 },    // projection._m00
-                u_maxScreenSpaceRadius:{ value: 15 },     // max kernel half-width
+                u_depthTexture: { value: null },
+                u_rangeRefTexture: { value: null },  // depth ref for thickness blur (mode 1)
+                u_direction: { value: new THREE.Vector2(1, 0) },
+                u_resolution: { value: new THREE.Vector2(this.fluidWidth, this.fluidHeight) },
+                u_blurRadius: { value: p.blurRadius },
+                u_blurDepthFalloff: { value: p.blurDepthFalloff },
+                u_blurMode: { value: 0 },     // 0 = depth, 1 = thickness
+                u_worldRadius: { value: 0.0 },    // 0 = use fixed blur
+                u_projScale: { value: 1.0 },    // projection._m00
+                u_maxScreenSpaceRadius: { value: 15 },     // max kernel half-width
             },
         });
         this._blurPass = new FullscreenPass(this._blurMat);
@@ -291,40 +291,40 @@ export class FluidRenderer {
         const p = this.params;
 
         this._compMat = new THREE.ShaderMaterial({
-            vertexShader:   compositeVertex,
+            vertexShader: compositeVertex,
             fragmentShader: compositeFragment,
             uniforms: {
-                u_sceneColor:         { value: null },
-                u_fluidDepth:         { value: null },
-                u_fluidDepthRaw:      { value: null },
-                u_fluidThickness:     { value: null },
-                u_detailNormalBlend:  { value: p.detailNormalBlend },
-                u_resolution:         { value: new THREE.Vector2(this.width, this.height) },
-                u_near:               { value: 0.1 },
-                u_far:                { value: 1000.0 },
-                u_inverseProjection:  { value: new THREE.Matrix4() },
-                u_inverseView:        { value: new THREE.Matrix4() },
-                u_cameraProjection:   { value: new THREE.Matrix4() },
-                u_waterColor:         { value: new THREE.Vector3(p.waterR, p.waterG, p.waterB) },
-                u_shallowColor:       { value: new THREE.Vector3(p.shallowR, p.shallowG, p.shallowB) },
-                u_absorptionColor:    { value: new THREE.Vector3(p.absorbR, p.absorbG, p.absorbB) },
+                u_sceneColor: { value: null },
+                u_fluidDepth: { value: null },
+                u_fluidDepthRaw: { value: null },
+                u_fluidThickness: { value: null },
+                u_detailNormalBlend: { value: p.detailNormalBlend },
+                u_resolution: { value: new THREE.Vector2(this.width, this.height) },
+                u_near: { value: 0.1 },
+                u_far: { value: 1000.0 },
+                u_inverseProjection: { value: new THREE.Matrix4() },
+                u_inverseView: { value: new THREE.Matrix4() },
+                u_cameraProjection: { value: new THREE.Matrix4() },
+                u_waterColor: { value: new THREE.Vector3(p.waterR, p.waterG, p.waterB) },
+                u_shallowColor: { value: new THREE.Vector3(p.shallowR, p.shallowG, p.shallowB) },
+                u_absorptionColor: { value: new THREE.Vector3(p.absorbR, p.absorbG, p.absorbB) },
                 u_absorptionStrength: { value: p.absorptionStrength },
-                u_ior:                { value: p.ior },
+                u_ior: { value: p.ior },
                 u_refractionStrength: { value: p.refractionStrength },
-                u_specularStrength:   { value: p.specularStrength },
-                u_normalScale:        { value: p.normalScale },
-                u_lightDirView:       { value: new THREE.Vector3(0, 1, 0) },
-                u_boundsCenter:       { value: new THREE.Vector3(0, 0, 0) },
-                u_boundsHalfSize:     { value: new THREE.Vector3(5, 5, 5) },
-                u_envMap:             { value: null },
-                u_envMapIntensity:    { value: p.envMapIntensity },
-                u_foamTexture:        { value: null },
-                u_causticsStrength:   { value: p.causticsStrength },
-                u_tintMix:            { value: p.tintMix },
-                u_scatterStrength:    { value: p.scatterStrength },
-                u_surfaceExposure:    { value: p.surfaceExposure },
-                u_debugMode:          { value: 0.0 },
-                u_floorY:             { value: 0.0 },  // tank floor world Y (for refraction clamping)
+                u_specularStrength: { value: p.specularStrength },
+                u_normalScale: { value: p.normalScale },
+                u_lightDirView: { value: new THREE.Vector3(0, 1, 0) },
+                u_boundsCenter: { value: new THREE.Vector3(0, 0, 0) },
+                u_boundsHalfSize: { value: new THREE.Vector3(5, 5, 5) },
+                u_envMap: { value: null },
+                u_envMapIntensity: { value: p.envMapIntensity },
+                u_foamTexture: { value: null },
+                u_causticsStrength: { value: p.causticsStrength },
+                u_tintMix: { value: p.tintMix },
+                u_scatterStrength: { value: p.scatterStrength },
+                u_surfaceExposure: { value: p.surfaceExposure },
+                u_debugMode: { value: 0.0 },
+                u_floorY: { value: 0.0 },  // tank floor world Y (for refraction clamping)
             },
         });
         this._compPass = new FullscreenPass(this._compMat);
@@ -337,9 +337,9 @@ export class FluidRenderer {
         const near = camera.near, far = camera.far;
 
         this._depthMat.uniforms.u_near.value = near;
-        this._depthMat.uniforms.u_far.value  = far;
-        this._compMat.uniforms.u_near.value  = near;
-        this._compMat.uniforms.u_far.value   = far;
+        this._depthMat.uniforms.u_far.value = far;
+        this._compMat.uniforms.u_near.value = near;
+        this._compMat.uniforms.u_far.value = far;
 
         this._compMat.uniforms.u_inverseProjection.value.copy(camera.projectionMatrixInverse);
         this._compMat.uniforms.u_inverseView.value.copy(camera.matrixWorld);
@@ -347,8 +347,8 @@ export class FluidRenderer {
 
         // World-space light → view space for Blinn-Phong.
         const worldLight = this._worldLightDir.clone();
-        const mat3view   = new THREE.Matrix3().setFromMatrix4(camera.matrixWorldInverse);
-        const viewLight  = worldLight.applyMatrix3(mat3view).normalize();
+        const mat3view = new THREE.Matrix3().setFromMatrix4(camera.matrixWorldInverse);
+        const viewLight = worldLight.applyMatrix3(mat3view).normalize();
         this._compMat.uniforms.u_lightDirView.value.copy(viewLight);
 
         // Tank bounding box — tank is a unit cube scaled and offset in main.js.
@@ -395,7 +395,7 @@ export class FluidRenderer {
     // tankMesh is forwarded so we can extract the bounding box in world space.
     // -----------------------------------------------------------------------
     render(mainScene, camera, tankMesh) {
-        const renderer   = this.renderer;
+        const renderer = this.renderer;
         const posTexture = this.fluid.commonUniforms.texturePosition.value;
         const densTexture = this.fluid.commonUniforms.textureDensity.value;
 
@@ -411,19 +411,19 @@ export class FluidRenderer {
         const velTexture = this.fluid.commonUniforms.textureVelocity.value;
 
         this._depthMat.uniforms.texturePosition.value = posTexture;
-        this._depthMat.uniforms.textureDensity.value  = densTexture;
+        this._depthMat.uniforms.textureDensity.value = densTexture;
         this._thickMat.uniforms.texturePosition.value = posTexture;
-        this._thickMat.uniforms.textureDensity.value  = densTexture;
-        this._foamMat.uniforms.texturePosition.value  = posTexture;
-        this._foamMat.uniforms.textureVelocity.value  = velTexture;
-        this._foamMat.uniforms.textureDensity.value   = densTexture;
+        this._thickMat.uniforms.textureDensity.value = densTexture;
+        this._foamMat.uniforms.texturePosition.value = posTexture;
+        this._foamMat.uniforms.textureVelocity.value = velTexture;
+        this._foamMat.uniforms.textureDensity.value = densTexture;
 
         const savedColor = new THREE.Color();
         renderer.getClearColor(savedColor);
         const savedAlpha = renderer.getClearAlpha();
 
         // Pass 1: opaque scene
-        const wasVisible       = this.fluid.mesh.visible;
+        const wasVisible = this.fluid.mesh.visible;
         this.fluid.mesh.visible = this.params.showParticles;
         renderer.setRenderTarget(this.sceneRT);
         renderer.clear();
@@ -451,17 +451,17 @@ export class FluidRenderer {
         this._blurMat.uniforms.u_projScale.value = camera.projectionMatrix.elements[0]; // _m00
 
         // Passes 4+: bilateral blur on depth (N iterations, mode 0 = self-ref)
-        const iters     = Math.max(1, Math.round(this.params.blurIterations));
-        const blurredDepth    = this._runBlurPasses(this.depthRT.texture,    this.blurHRT,      this.blurVRT,      iters, 0, null);
+        const iters = Math.max(1, Math.round(this.params.blurIterations));
+        const blurredDepth = this._runBlurPasses(this.depthRT.texture, this.blurHRT, this.blurVRT, iters, 0, null);
         // Thickness blur: mode 1, use raw depth as bilateral range reference (SebLague SmoothThickPrepare)
         const blurredThickness = this._runBlurPasses(this.thicknessRT.texture, this.thickBlurHRT, this.thickBlurVRT, iters, 1, this.depthRT.texture);
 
         // Final composite
-        this._compMat.uniforms.u_sceneColor.value     = this.sceneRT.texture;
-        this._compMat.uniforms.u_fluidDepth.value     = blurredDepth;
-        this._compMat.uniforms.u_fluidDepthRaw.value  = this.depthRT.texture;
+        this._compMat.uniforms.u_sceneColor.value = this.sceneRT.texture;
+        this._compMat.uniforms.u_fluidDepth.value = blurredDepth;
+        this._compMat.uniforms.u_fluidDepthRaw.value = this.depthRT.texture;
         this._compMat.uniforms.u_fluidThickness.value = blurredThickness;
-        this._compMat.uniforms.u_foamTexture.value    = this.foamRT.texture;
+        this._compMat.uniforms.u_foamTexture.value = this.foamRT.texture;
         this._compPass.render(renderer, null);
 
         renderer.setClearColor(savedColor, savedAlpha);
@@ -471,12 +471,12 @@ export class FluidRenderer {
     // Resize
     // -----------------------------------------------------------------------
     onResize(width, height) {
-        this.width  = width;
+        this.width = width;
         this.height = height;
-        const s  = this.params.fluidScale;
-        const fw = Math.max(1, Math.round(width  * s));
+        const s = this.params.fluidScale;
+        const fw = Math.max(1, Math.round(width * s));
         const fh = Math.max(1, Math.round(height * s));
-        this.fluidWidth  = fw;
+        this.fluidWidth = fw;
         this.fluidHeight = fh;
 
         this.sceneRT.setSize(width, height);
@@ -501,21 +501,21 @@ export class FluidRenderer {
         this.params.particleRadius = v;
         this._depthMat.uniforms.u_particleRadius.value = v;
         this._thickMat.uniforms.u_particleRadius.value = v;
-        this._foamMat.uniforms.u_particleRadius.value  = v;
+        this._foamMat.uniforms.u_particleRadius.value = v;
     }
-    setBlurRadius(v)          { this.params.blurRadius = v;       this._blurMat.uniforms.u_blurRadius.value      = v; }
-    setBlurFalloff(v)         { this.params.blurDepthFalloff = v; this._blurMat.uniforms.u_blurDepthFalloff.value = v; }
-    setBlurIterations(v)      { this.params.blurIterations = Math.max(1, Math.round(v)); }
-    setNormalScale(v)         { this._compMat.uniforms.u_normalScale.value      = v; }
-    setAbsorptionStrength(v)  { this._compMat.uniforms.u_absorptionStrength.value = v; }
-    setIOR(v)                 { this._compMat.uniforms.u_ior.value               = v; }
-    setRefractionStrength(v)  { this._compMat.uniforms.u_refractionStrength.value = v; }
-    setSpecularStrength(v)    { this._compMat.uniforms.u_specularStrength.value   = v; }
-    setThicknessScale(v)      { this._thickMat.uniforms.u_thicknessScale.value    = v; }
-    setDetailNormalBlend(v)   { this._compMat.uniforms.u_detailNormalBlend.value  = v; }
-    setEnvMap(cubeTexture)    { this._compMat.uniforms.u_envMap.value              = cubeTexture; }
-    setEnvMapIntensity(v)     { this._compMat.uniforms.u_envMapIntensity.value     = v; }
-    setDebugMode(v)           { this._compMat.uniforms.u_debugMode.value           = v; }
+    setBlurRadius(v) { this.params.blurRadius = v; this._blurMat.uniforms.u_blurRadius.value = v; }
+    setBlurFalloff(v) { this.params.blurDepthFalloff = v; this._blurMat.uniforms.u_blurDepthFalloff.value = v; }
+    setBlurIterations(v) { this.params.blurIterations = Math.max(1, Math.round(v)); }
+    setNormalScale(v) { this._compMat.uniforms.u_normalScale.value = v; }
+    setAbsorptionStrength(v) { this._compMat.uniforms.u_absorptionStrength.value = v; }
+    setIOR(v) { this._compMat.uniforms.u_ior.value = v; }
+    setRefractionStrength(v) { this._compMat.uniforms.u_refractionStrength.value = v; }
+    setSpecularStrength(v) { this._compMat.uniforms.u_specularStrength.value = v; }
+    setThicknessScale(v) { this._thickMat.uniforms.u_thicknessScale.value = v; }
+    setDetailNormalBlend(v) { this._compMat.uniforms.u_detailNormalBlend.value = v; }
+    setEnvMap(cubeTexture) { this._compMat.uniforms.u_envMap.value = cubeTexture; }
+    setEnvMapIntensity(v) { this._compMat.uniforms.u_envMapIntensity.value = v; }
+    setDebugMode(v) { this._compMat.uniforms.u_debugMode.value = v; }
 
     setWaterColor(r, g, b) {
         this._compMat.uniforms.u_waterColor.value.set(r, g, b);
@@ -536,18 +536,18 @@ export class FluidRenderer {
     setWorldLightDirection(v) {
         this._worldLightDir.copy(v).normalize();
     }
-    setFoamScale(v)    { this.params.foamScale    = v; this._foamMat.uniforms.u_foamScale.value    = v; }
+    setFoamScale(v) { this.params.foamScale = v; this._foamMat.uniforms.u_foamScale.value = v; }
     setFoamSpeedMin(v) { this.params.foamSpeedMin = v; this._foamMat.uniforms.u_foamSpeedMin.value = v; }
     setFoamSpeedMax(v) { this.params.foamSpeedMax = v; this._foamMat.uniforms.u_foamSpeedMax.value = v; }
     setCausticsStrength(v) { this.params.causticsStrength = v; this._compMat.uniforms.u_causticsStrength.value = v; }
-    setTintMix(v)          { this.params.tintMix = v;          this._compMat.uniforms.u_tintMix.value          = v; }
-    setScatterStrength(v)  { this.params.scatterStrength = v;  this._compMat.uniforms.u_scatterStrength.value  = v; }
-    setSurfaceExposure(v)  { this.params.surfaceExposure = v; this._compMat.uniforms.u_surfaceExposure.value = v; }
+    setTintMix(v) { this.params.tintMix = v; this._compMat.uniforms.u_tintMix.value = v; }
+    setScatterStrength(v) { this.params.scatterStrength = v; this._compMat.uniforms.u_scatterStrength.value = v; }
+    setSurfaceExposure(v) { this.params.surfaceExposure = v; this._compMat.uniforms.u_surfaceExposure.value = v; }
     setDensityRadiusStrength(v) {
         this.params.densityRadiusStrength = v;
         this._depthMat.uniforms.u_densityRadiusStrength.value = v;
         this._thickMat.uniforms.u_densityRadiusStrength.value = v;
-        this._foamMat.uniforms.u_densityRadiusStrength.value  = v;
+        this._foamMat.uniforms.u_densityRadiusStrength.value = v;
     }
 
     dispose() {
