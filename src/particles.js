@@ -945,7 +945,37 @@ export class ParticleFluid {
 
             float terrainHeight(float x, float z) {
                 float ripple = u_baseBumpAmp * sin(x * u_baseBumpFreq) * cos(z * u_baseBumpFreq);
-                return u_baseYOffset + ripple - x * u_baseTiltX - z * u_baseTiltZ;
+
+                // Add hills that blend with the terrain
+                float hillHeight = 0.0;
+
+                // Hill positions and properties (must match JavaScript)
+                vec3 hills[4];
+                hills[0] = vec3(-25.0, -25.0, 8.0);  // x, z, height
+                hills[1] = vec3(25.0, -15.0, 6.0);
+                hills[2] = vec3(-15.0, 20.0, 7.0);
+                hills[3] = vec3(30.0, 25.0, 5.0);
+
+                float hillRadii[4];
+                hillRadii[0] = 12.0;
+                hillRadii[1] = 10.0;
+                hillRadii[2] = 14.0;
+                hillRadii[3] = 8.0;
+
+                // Calculate height contribution from each hill
+                for (int i = 0; i < 4; i++) {
+                    float dx = x - hills[i].x;
+                    float dz = z - hills[i].y;
+                    float distance = sqrt(dx * dx + dz * dz);
+
+                    if (distance < hillRadii[i]) {
+                        float normalizedDist = distance / hillRadii[i];
+                        float slopeFactor = 1.0 - normalizedDist * normalizedDist;
+                        hillHeight += hills[i].z * slopeFactor;
+                    }
+                }
+
+                return u_baseYOffset + ripple + hillHeight - x * u_baseTiltX - z * u_baseTiltZ;
             }
 
             // Derivative of (h-r)^2 — pressure gradient

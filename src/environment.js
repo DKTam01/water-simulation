@@ -20,17 +20,40 @@ export function sampleBaseplateY(x, z, s) {
     const amp = s.baseplateBumpAmp;
     const freq = s.baseplateBumpFreq;
     const ripple = amp * Math.sin(x * freq) * Math.cos(z * freq);
-    return s.baseplateYOffset + ripple - x * s.baseplateTiltX - z * s.baseplateTiltZ;
+
+    // Add hills
+    let hillHeight = 0;
+
+    // Hill positions
+    const hills = [
+        { x: -25, z: -25, height: 7, radius: 12 },  // Increased radius for gentler slopes
+        { x: 28, z: -18, height: 6, radius: 10 },
+        { x: -20, z: 20, height: 7, radius: 14 },
+        { x: 30, z: -5, height: 2, radius: 12 },
+    ];
+
+    // Calculate slope of each hill
+    hills.forEach(hill => {
+        const dx = x - hill.x;
+        const dz = z - hill.z;
+        const distance = Math.sqrt(dx * dx + dz * dz);
+
+        if (distance < hill.radius) {
+            // Create a gentle slope instead of cliff life
+            const normalizedDist = distance / hill.radius;
+            const slopeFactor = 1 - normalizedDist * normalizedDist; // Quadratic falloff for gentle slope
+            hillHeight += hill.height * slopeFactor;
+        }
+    });
+
+    return s.baseplateYOffset + ripple + hillHeight - x * s.baseplateTiltX - z * s.baseplateTiltZ;
 }
 
 /**
  * Vertex colors for the four quadrants (visual only): +X/+Z, -X/+Z, -X/-Z, +X/-Z.
  */
 function quadrantColor(x, z) {
-    if (x >= 0 && z >= 0) return new THREE.Color(0xc75b39);
-    if (x < 0 && z >= 0) return new THREE.Color(0x3d6b9e);
-    if (x < 0 && z < 0) return new THREE.Color(0x6b3d8e);
-    return new THREE.Color(0x2d8f6f);
+    return new THREE.Color(0xcccccc);
 }
 
 /**
@@ -91,10 +114,14 @@ export function syncFluidTank(tankMesh, uiSettings, sphUniforms, fluid) {
 }
 
 export function setupEnvironment(scene, uiSettings) {
+    const textureLoader = new THREE.TextureLoader();
+    const grass = textureLoader.load('textures/grass-texture.jpg');
+
     const terrainMaterial = new THREE.MeshStandardMaterial({
-        vertexColors: true,
-        roughness: 0.9,
-        metalness: 0.02,
+        map: grass,
+        vertexColors: false,  // Disable vertex colors since we're using a texture
+        roughness: 0.8,
+        metalness: 0.0,
     });
 
     let ground;

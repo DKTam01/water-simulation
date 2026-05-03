@@ -158,13 +158,6 @@ export function setupGUI(uiSettings, callbacks) {
     const envContainer = document.getElementById('gui-env-container');
     const guiEnv = new GUI({ container: envContainer });
     guiEnv.add(uiSettings, 'showWireframe').name('Baseplate wireframe').onChange(callbacks.setWireframe);
-    guiEnv
-        .add(uiSettings, 'timeOfDay', ['Morning', 'Day', 'Evening', 'Night'])
-        .name('Time of day')
-        .onChange(() => {
-            if (typeof callbacks.applyTimeOfDay === 'function') callbacks.applyTimeOfDay();
-        });
-
     const terrainContainer = document.getElementById('gui-terrain-container');
     const guiTerrain = new GUI({ container: terrainContainer });
     guiTerrain.add(uiSettings, 'baseplateSize', 20, 80, 1).name('Baseplate size').onChange(callbacks.generateTerrain);

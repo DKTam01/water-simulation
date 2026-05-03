@@ -43,7 +43,7 @@ const clock = new THREE.Clock();
 const hemiLight = new THREE.HemisphereLight(0x88bbee, 0x445544, 0.85);
 scene.add(hemiLight);
 
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.45);
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
 scene.add(ambientLight);
 
 const dirLight = new THREE.DirectionalLight(0xfff4e0, 1.45);
