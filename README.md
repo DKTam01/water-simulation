@@ -2,7 +2,7 @@
 
 A real-time 3D water simulation built for **CS 335** (Computer Graphics).
 
-The demo pairs **GPU SPH** (smoothed particle hydrodynamics via Three.js `GPUComputationRenderer`) with a **multi-pass screen-space fluid renderer** (depth/thickness splats, bilateral blur, normal reconstruction, Fresnel + absorption composite, screen-space foam). Everything runs inside a deliberate **retro Windows Vista / Frutiger Aero** “desktop OS” shell—glossy window chrome, taskbar, and stylised presentation. The look is **art-directed and era-inspired**, not aimed at photorealistic water: we use physically motivated shading where it helps, but tune colour, foam, and reflections for readability and cohesion.
+The demo pairs **GPU SPH** (smoothed particle hydrodynamics via Three.js `GPUComputationRenderer`) with a **multi-pass screen-space fluid renderer** (depth/thickness splats, bilateral blur, normal reconstruction, Fresnel + absorption composite, screen-space foam). Everything runs inside a  **retro Windows Vista / Frutiger Aero** “desktop OS” presentation. The look is more **artistic and frutiger-aero-inspired** rather than aiming for photorealism.
 
 ## Team members
 
@@ -71,20 +71,6 @@ When debug mode is **off**, the sidebar is hidden, the ball is hidden, and the b
 - **Interaction ball**: position sliders, ball radius/scale (affects mesh and `u_ballRadius` in the solver).
 - **Simulation presets**: reset blob, breaking-wave preset; **Particle count** (32² / 64² / 128² texels) — changing this **reloads the page** after confirmation and saves choice in `localStorage`.
 - **White particles (foam / spray / bubbles)**: enable, spawn rate, opacity, lifetimes, neighbour thresholds, bubble buoyancy (CPU billboard layer on top of SPH).
-
-## Adaptive performance
-
-The animation loop runs **`checkAdaptiveFPS`**: over a rolling ~3 s window it estimates average FPS and automatically **lowers or raises** the fluid renderer’s internal resolution scale (`fluidScale`) so weaker laptops stay interactive. You can still override **Fluid resolution** manually in the Fluid rendering panel.
-
-## Features (summary)
-
-| Area | What it does |
-|------|----------------|
-| **GPU SPH** | Predicted positions → density → pressure → viscosity → integration; CPU spatial hash; adaptive substeps. |
-| **SSFR** | Depth + thickness splats, bilateral blur, normals, refraction/absorption/Fresnel, env reflection, foam pass, debug views. |
-| **Whitewater** | Optional CPU foam/spray/bubble particles. |
-| **Terrain** | Textured procedural riverbed + rocks; tank OBB synced in `environment.js`. |
-| **UI** | Vista-style window, taskbar clock, draggable title bar, login flow, BGM. |
 
 ## Dependencies (pinned via import map in `index.html`)
 
