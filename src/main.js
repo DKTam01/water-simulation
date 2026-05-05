@@ -138,7 +138,6 @@ const resumeAudio = () => {
 
 const uiSettings = {
     showWireframe: false,
-    timeOfDay: 'Day',
     baseplateSize: 80,
     baseplateSeg: 240,
     baseplateYOffset: 0,
@@ -255,38 +254,6 @@ const fluidRenderer = new FluidRenderer(renderer, fluid);
 if (envCubeTexture) fluidRenderer.setEnvMap(envCubeTexture);
 
 const sunDirScratch = new THREE.Vector3();
-function applyTimeOfDay() {
-    const t = uiSettings.timeOfDay;
-    if (t === 'Morning') {
-        hemiLight.intensity = 0.72;
-        ambientLight.intensity = 0.38;
-        dirLight.intensity = 1.05;
-        sunDirScratch.set(40, 26, 72).normalize();
-    } else if (t === 'Evening') {
-        hemiLight.intensity = 0.58;
-        ambientLight.intensity = 0.34;
-        dirLight.intensity = 1.0;
-        sunDirScratch.set(-55, 14, 48).normalize();
-    } else if (t === 'Night') {
-        hemiLight.intensity = 0.32;
-        ambientLight.intensity = 0.2;
-        dirLight.intensity = 0.32;
-        sunDirScratch.set(14, 5, -6).normalize();
-    } else {
-        hemiLight.intensity = 0.88;
-        ambientLight.intensity = 0.46;
-        dirLight.intensity = 1.45;
-        sunDirScratch.set(95, 115, 72).normalize();
-    }
-    dirLight.position.copy(sunDirScratch).multiplyScalar(200);
-    skyDomeMat.uniforms.u_sunDir.value.copy(sunDirScratch);
-    if (typeof fluidRenderer.setWorldLightDirection === 'function') {
-        fluidRenderer.setWorldLightDirection(sunDirScratch);
-    } else if (fluidRenderer._worldLightDir) {
-        fluidRenderer._worldLightDir.copy(sunDirScratch).normalize();
-    }
-}
-applyTimeOfDay();
 
 function applyWaterColorFromUI() {
     const c = new THREE.Color(uiSettings.waterColor);
@@ -388,7 +355,6 @@ try {
         fluidRenderer,
         ballMesh,
         applyWaterColorFromUI,
-        applyTimeOfDay,
         syncFluidVolume: syncTankAndFluidUniforms,
         resizeFluid,
         pauseSim,
